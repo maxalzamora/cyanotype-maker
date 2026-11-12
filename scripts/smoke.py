@@ -5,8 +5,8 @@
     python3 scripts/smoke.py photo.jpg
 
 Posts an image to /api/render as PNG, TIFF and PDF, checks that the bytes really are
-those formats, and prints the step-wedge self-check. Uses only the standard library so it
-runs anywhere Python does.
+those formats, prints the step-wedge self-check, and runs the calibration loop end to end
+with the simulated scan. Uses only the standard library so it runs anywhere Python does.
 """
 
 import json
@@ -19,7 +19,7 @@ import uuid
 BASE = os.environ.get("CYANOTYPES_URL", "http://localhost:8080")
 
 
-def post_file(path, **fields):
+def post_file(path, endpoint="/api/render", **fields):
     boundary = uuid.uuid4().hex
     with open(path, "rb") as handle:
         payload = handle.read()
@@ -40,7 +40,7 @@ def post_file(path, **fields):
     body += f"\r\n--{boundary}--\r\n".encode()
 
     request = urllib.request.Request(
-        BASE + "/api/render",
+        BASE + endpoint,
         data=body,
         headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
         method="POST",
@@ -69,6 +69,45 @@ def check(source, fmt, signature, headers, **fields):
     return True
 
 
+def check_calibration():
+    """Print target → synthetic scan → measured profile → usable as a profile."""
+    with urllib.request.urlopen(
+            BASE + "/api/calibration/target?format=pdf", timeout=60) as response:
+        target = response.read()
+        patches = response.headers.get("X-Calibration-Patches")
+    if not target.startswith(b"%PDF") or patches != "21":
+        print(f"FAIL: calibration target is not a 21-bar PDF (patches={patches})")
+        return False
+    print(f"ok  target  21 bars, {len(target)} bytes")
+
+    scan_path = "simulated-scan.png"
+    with urllib.request.urlopen(
+            BASE + "/api/calibration/simulated-scan.png", timeout=60) as response:
+        with open(scan_path, "wb") as handle:
+            handle.write(response.read())
+    print(f"ok  scan    {scan_path}")
+
+    with post_file(scan_path, endpoint="/api/calibration", name="smoke test") as response:
+        report = json.load(response)
+    lut = report["lut"]
+    if len(report["patches"]) != 21 or len(lut) != 256:
+        print("FAIL: calibration returned the wrong shape")
+        return False
+    if any(lut[i] > lut[i - 1] for i in range(1, len(lut))):
+        print("FAIL: calibrated LUT is not monotone")
+        return False
+    print(f"ok  profile {report['profileId']}  range "
+          f"{report['measuredDensityRange']:.2f}  lut 0->{lut[0]} 128->{lut[128]} 255->{lut[-1]}")
+
+    with urllib.request.urlopen(BASE + "/api/profiles", timeout=30) as response:
+        ids = [profile["id"] for profile in json.load(response)]
+    if report["profileId"] not in ids:
+        print("FAIL: the new profile is not offered by /api/profiles")
+        return False
+    print(f"ok  catalog {len(ids)} profiles, including the measurement")
+    return True
+
+
 def main(argv):
     if len(argv) != 2:
         print(__doc__)
@@ -91,6 +130,8 @@ def main(argv):
             if not row["ok"]:
                 print("  mismatch:", row)
         ok = False
+
+    ok &= check_calibration()
     return 0 if ok else 1
 
 

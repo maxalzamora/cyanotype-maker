@@ -7,9 +7,9 @@ Cyanotype is a negative process: the paper turns Prussian blue where UV reaches 
 reproduce a photograph you expose through an inverted image. This service produces that
 inverted image, shaped for what the process can actually print.
 
-> **Status: stage 3.** Perceptual conversion, density mapping, process profiles, a monotone
-> tone curve, and print-ready export (16-bit TIFF and a page-sized PDF). Calibration from
-> measured prints is not built yet — see [Not built yet](#not-built-yet).
+> **Status: stage 4.** Perceptual conversion, density mapping, process profiles, a monotone
+> tone curve, print-ready export (16-bit TIFF and a page-sized PDF), and calibration from a
+> measured print. See [Calibration](#calibration).
 
 In the output file a **high** value means clear film: UV passes, the paper turns blue, the
 print is dark. So the negative looks like a photographic negative, which is the point.
@@ -40,6 +40,7 @@ Naive inversion produces bad negatives. Four things are handled here:
 | `linear` | LINEAR | Stage 1 behaviour. Exact inversion, used as a reference and for exact tests. |
 | `cyanotype` | DENSITY | Print density matched to source density, Dmax 1.4. The default. |
 | `cyanotype-soft` | DENSITY | Same process, rendered flatter via a tone curve so shadows do not sit on Dmax. |
+| `cal-…` | CALIBRATED | Created by measuring a real print; the assumed straight line is replaced by the measured curve. |
 
 A profile is more than a preset: it carries the print density range (`printDmin`,
 `printDmax`), output levels (`blackLevel`, `whiteLevel` — heavy ink laydown can coalesce on
@@ -49,6 +50,49 @@ overshoot; an overshoot in a tone curve shows up as a contour in the print.
 Deep shadows do clip in the density profiles, at reflectance below about 4%. This is
 physical: a print cannot be denser than its Dmax. `cyanotype-soft` exists to show the
 workaround — give up both ends deliberately rather than letting the bottom block up.
+
+## Calibration
+
+The built-in profiles assume a density range, and assume that print density tracks the file
+value in a straight line. Neither assumption survives contact with real materials. The
+calibration loop replaces them with a measurement:
+
+1. **Print the target.** `GET /api/calibration/target?format=pdf` returns 21 bars, raw
+   values 0 → 255, edge to edge, laid out on paper by the same code that lays out a
+   negative. No tone curve is applied: the target exists to find out what the curve should
+   be.
+2. **Expose it and photograph the print.** Crop to the bars. Nothing has to be located,
+   because the target is only stripes.
+3. **Measure.** `POST /api/calibration` decodes the photograph to linear light, takes the
+   median of the middle 70% of each bar, converts to density (`-log10`), and normalises
+   against the lightest and darkest patches. The result is 21 points on the curve *file
+   value → position in this print's density range*.
+4. **Fit, invert, store.** A monotone spline is fitted through the points, a 256-entry LUT
+   is precomputed from its inverse combined with the existing density model, and the
+   profile is written to `data/profiles/<id>.json`. It is selectable immediately, and
+   survives a restart.
+
+The measured numbers are relative, and that is enough. A camera cannot know absolute
+density, but it can order tones and find both ends of the range, and a curve needs only
+those. What is *not* normalised away is the shape: an S-curve in the print is exactly what
+a straight-line assumption fails to reproduce.
+
+Rejected scans say why, in terms the person holding the camera can act on:
+
+| reason | what it means |
+|---|---|
+| `CALIBRATION_TOO_SMALL` | fewer than 42 px across; the bars cannot be resolved |
+| `CALIBRATION_WRONG_ORIENTATION` | the bars run vertically; rotate the photograph |
+| `CALIBRATION_NO_CONTRAST` | under 0.30 of density between the ends; underexposed or washed out |
+| `CALIBRATION_NOT_MONOTONE` | the bars do not step in order; a bad crop, a missed bar, or a mirrored negative |
+
+Without a darkroom the loop can still be exercised end to end: `GET
+/api/calibration/simulated-scan.png` renders the target through a known forward model (an
+S-curve print, slight vignetting, sensor noise), and the UI has a button that feeds it
+straight back into the measurement. The same model is the test fixture — the analyser is
+required to recover the curve it was generated from to within 0.02 of normalised density,
+and a calibrated profile of a *linear* print has to reproduce the analytic `cyanotype` LUT
+to within two levels across all 256 values.
 
 ## Print files
 
@@ -123,8 +167,8 @@ docker compose up --build              # http://localhost:3000
 | `400` | nothing uploaded, unknown profile, unknown format, unknown paper, or an impossible margin/dpi |
 | `413` | over 25 MB, over 80 MP / 20000 px per side, or an export that would exceed 200 MP |
 | `415` | magic bytes are not PNG/JPEG/TIFF/GIF |
-| `422` | recognised format, but the bytes do not decode |
-| `500` | the upload was fine but the encoder failed (`EXPORT_FAILED`) |
+| `422` | recognised format, but the bytes do not decode; or a calibration scan that cannot be read as a wedge (`CALIBRATION_*`) |
+| `500` | the upload was fine but the encoder or profile store failed (`EXPORT_FAILED`, `PROFILE_STORE_FAILED`) |
 
 The declared `Content-Type` is ignored. Format is decided by magic bytes, and dimensions
 are read from the header **before** pixels are allocated — a 40-byte PNG claiming
@@ -132,12 +176,21 @@ are read from the header **before** pixels are allocated — a 40-byte PNG claim
 
 Other endpoints:
 
-- `GET /api/profiles` — the profiles the UI selector is built from.
+- `GET /api/profiles` — every profile: the built-ins plus anything calibrated on this
+  machine. `measuredPoints` is zero for the assumptions.
 - `GET /api/papers` — paper sizes in millimetres.
 - `GET /api/defaults` — what the form starts with.
 - `GET /api/diagnostics/step-wedge?profile=…` — renders a 21-step ramp and reports
   expected vs actual, plus monotonicity and the two extremes.
 - `GET /api/diagnostics/step-wedge.png?profile=…` — the same wedge as an image.
+- `GET /api/calibration/target?format=pdf` — the printable 21-bar wedge (`png` is a
+  preview, `tiff` a 16-bit print file).
+- `POST /api/calibration` — `file`, a photograph of the printed wedge; optional `name`.
+  Returns the measured patches, the profile id, the resulting 256-entry LUT, and notes.
+- `DELETE /api/calibration/{id}` — removes a calibration and its JSON file. Built-ins are
+  refused.
+- `GET /api/calibration/simulated-scan.png` — a synthetic photograph of a print, for demos
+  and for trying the loop without a darkroom.
 - `GET /health`
 
 Smoke test against a running server:
@@ -145,6 +198,9 @@ Smoke test against a running server:
 ```bash
 python3 scripts/smoke.py photo.jpg
 ```
+
+It also runs the calibration loop end to end: fetch the target, fetch the simulated scan,
+post it, and check that a monotone profile comes back and is offered by the catalogue.
 
 ## Verify a render
 
@@ -164,6 +220,27 @@ Two failure modes this catches immediately:
 
 In the test suite, `NegativeRendererTest` checks all 256 greyscale values under `linear`,
 and `NegativeLutTest` pins the density numbers with hard-coded expectations.
+
+Calibration can be checked without a darkroom:
+
+```bash
+# 1. the printable target: 21 bars, a real PDF page
+curl -s -D - -o target.pdf "localhost:3000/api/calibration/target?format=pdf" | grep -i patches
+
+# 2. a photograph of a print that was never made
+curl -s -o scan.png localhost:3000/api/calibration/simulated-scan.png
+
+# 3. measure it; the report carries the patches, the LUT and the profile id
+curl -s -F file=@scan.png -F name=demo localhost:3000/api/calibration | python3 -m json.tool
+
+# 4. it is now a profile everywhere, and a file on disk
+curl -s localhost:3000/api/profiles
+cat data/profiles/cal-*.json
+```
+
+For the simulated S-curve the measured range comes out at 1.00 and the calibrated LUT is
+`0 → 255`, `128 → 125`, `255 → 0`: clear film for black, solid ink for white, and the
+midtones moved from the assumption's 121 to the 125 that this print actually needs.
 
 For the print files, the checks are structural and can be repeated with any TIFF or PDF
 reader:
@@ -185,14 +262,20 @@ python3 -c "from pypdf import PdfReader; p=PdfReader('negative.pdf').pages[0]; \
 imaging/     pure Java, no Spring on the classpath
   ImageFormat        magic-byte sniffing
   ImageInspector     header validation, decompression-bomb guard
+  ImageDecoder       bytes → pixels, shared by render and calibration
   Srgb               transfer function + luminance
   ToneCurve          monotone cubic interpolation
-  ProcessProfile     print range, output levels, curve
+  ProcessProfile     print range, output levels, curve, measured response
   NegativeLut        the whole 8-bit transform as a table
   NegativeRenderer   applies the LUT, writes a greyscale raster
   PngEncoder         8-bit greyscale output
   NegativePipeline   inspect → decode → render → encode
   StepWedge          known-input test fixture
+  CalibrationTarget  the printable 21-bar wedge, and the grid that reads it back
+  ScanAnalyser       photograph → linear light → one density per bar
+  ScanMeasurement    the measurement, plus the numbers that say whether to trust it
+  MeasuredResponse   monotone curve from print density to file value
+  SimulatedScan      forward model of a print, for tests and the demo
   Paper, PrintSpec   stock, margin, sampling density, orientation
   PrintLayout        fit inside the margins, in points and pixels
   GrayResampler      bilinear resampling on raw samples, 8 → 16 bits
@@ -202,8 +285,8 @@ imaging/     pure Java, no Spring on the classpath
   PdfExporter        one page at true paper size
   Mirror             horizontal flip for ink-down film
 app/         Spring Boot
-  web/               HTTP surface, catalogue, error mapping
-  service/           render and export orchestration
+  web/               HTTP surface, catalogue, calibration, error mapping
+  service/           render, export, calibration, profile registry and store
   config/            property binding, imaging beans
 ```
 
@@ -214,11 +297,10 @@ enforces it. PDF output adds PDFBox to that module — a library, not a framewor
 
 In the order they will be added:
 
-1. Calibration: emit a step-wedge target, read measured densities back, fit a curve, store
-   it as a versioned process profile. This replaces the assumed `printDmax` with a measured
-   one and turns the tone curve into a real characteristic curve.
-2. A step wedge in the margin of the PDF, for the same reason: every print should carry its
+1. A step wedge in the margin of the PDF, for the same reason: every print should carry its
    own reference strip.
-3. A 16-bit path end to end. The export is 16-bit, but the renderer still works from 8-bit
+2. A 16-bit path end to end. The export is 16-bit, but the renderer still works from 8-bit
    source values and a 256-entry LUT.
+3. Automatic alignment of the scan (four fiducials and a homography) so the crop does not
+   have to be done by hand.
 4. A job queue for large renders, with retries and idempotency.

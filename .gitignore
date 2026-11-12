@@ -12,3 +12,9 @@ out/
 data/
 app.log
 app.pid
+
+# smoke-test output
+*-negative.png
+*-negative.tiff
+*-negative.pdf
+simulated-scan.png
