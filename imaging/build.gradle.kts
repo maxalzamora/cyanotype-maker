@@ -14,6 +14,9 @@ dependencies {
     implementation(libs.twelvemonkeys.jpeg)
     implementation(libs.twelvemonkeys.tiff)
 
+    // PDF output. Pure Java, no native code.
+    implementation(libs.pdfbox)
+
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
