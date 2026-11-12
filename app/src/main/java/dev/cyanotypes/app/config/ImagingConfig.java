@@ -3,7 +3,9 @@ package dev.cyanotypes.app.config;
 import dev.cyanotypes.imaging.ImageInspector;
 import dev.cyanotypes.imaging.NegativePipeline;
 import dev.cyanotypes.imaging.NegativeRenderer;
+import dev.cyanotypes.imaging.PdfExporter;
 import dev.cyanotypes.imaging.PngEncoder;
+import dev.cyanotypes.imaging.TiffEncoder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -28,6 +30,16 @@ public class ImagingConfig {
     @Bean
     PngEncoder pngEncoder() {
         return new PngEncoder();
+    }
+
+    @Bean
+    TiffEncoder tiffEncoder() {
+        return new TiffEncoder();
+    }
+
+    @Bean
+    PdfExporter pdfExporter() {
+        return new PdfExporter();
     }
 
     @Bean

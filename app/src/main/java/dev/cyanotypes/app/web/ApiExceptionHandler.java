@@ -1,6 +1,9 @@
 package dev.cyanotypes.app.web;
 
+import dev.cyanotypes.app.service.ExportFailedException;
 import dev.cyanotypes.imaging.ImageRejectedException;
+import dev.cyanotypes.imaging.UnknownFormatException;
+import dev.cyanotypes.imaging.UnknownPaperException;
 import dev.cyanotypes.imaging.UnknownProfileException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,6 +38,34 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiError> handleUnknownProfile(UnknownProfileException e) {
         return ResponseEntity.badRequest()
                 .body(new ApiError("UNKNOWN_PROFILE", e.getMessage()));
+    }
+
+    @ExceptionHandler(UnknownPaperException.class)
+    public ResponseEntity<ApiError> handleUnknownPaper(UnknownPaperException e) {
+        return ResponseEntity.badRequest()
+                .body(new ApiError("UNKNOWN_PAPER", e.getMessage()));
+    }
+
+    @ExceptionHandler(UnknownFormatException.class)
+    public ResponseEntity<ApiError> handleUnknownFormat(UnknownFormatException e) {
+        return ResponseEntity.badRequest()
+                .body(new ApiError("UNKNOWN_FORMAT", e.getMessage()));
+    }
+
+    /**
+     * Bad values for margin, dpi and the like are rejected by the records that carry them,
+     * before anything is allocated. Only request parameters reach this handler.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiError> handleBadParameter(IllegalArgumentException e) {
+        return ResponseEntity.badRequest()
+                .body(new ApiError("INVALID_REQUEST", e.getMessage()));
+    }
+
+    @ExceptionHandler(ExportFailedException.class)
+    public ResponseEntity<ApiError> handleExportFailure(ExportFailedException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiError("EXPORT_FAILED", e.getMessage()));
     }
 
     @ExceptionHandler(MultipartException.class)

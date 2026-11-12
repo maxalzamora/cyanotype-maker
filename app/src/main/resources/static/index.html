@@ -69,11 +69,11 @@
     background: #fff;
     color: var(--ink);
     font: inherit;
-    min-width: 16rem;
   }
+  #profile { min-width: 15rem; }
+  .check { display: inline-flex; align-items: center; gap: 7px; font-size: .9rem; color: var(--muted); }
 
-  button {
-    justify-self: start;
+  button, .button {
     padding: 11px 22px;
     border: 1px solid var(--blue);
     border-radius: 3px;
@@ -82,9 +82,15 @@
     font: inherit;
     font-weight: 600;
     cursor: pointer;
+    text-decoration: none;
   }
   button:disabled { opacity: .38; cursor: not-allowed; }
-  button:not(:disabled):hover { background: #163d5f; }
+  button:not(:disabled):hover, .button:hover { background: #163d5f; }
+  .button.secondary {
+    background: transparent;
+    color: var(--blue);
+  }
+  .button.secondary:hover { background: rgba(30, 79, 122, .08); }
 
   #status { min-height: 1.5em; margin: 14px 0 0; color: var(--blue); font-size: .94rem; }
   #status.error { color: #9b2c2c; }
@@ -95,7 +101,6 @@
     display: block;
     border: 1px solid var(--line);
     background: #fff;
-    image-rendering: auto;
   }
   figcaption {
     display: flex;
@@ -107,6 +112,17 @@
     color: var(--muted);
   }
   figcaption a { color: var(--blue); font-weight: 600; }
+  .print {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    font-size: .9rem;
+    color: var(--muted);
+  }
   .note {
     margin-top: 30px;
     padding-top: 16px;
@@ -130,11 +146,32 @@
       <strong id="drop-title">Choose an image or drop it here</strong>
       <small>PNG, JPEG, TIFF or GIF · up to 25 MB</small>
     </label>
+
     <div class="controls">
       <label for="profile">Process profile</label>
       <select id="profile">
         <option value="cyanotype">Cyanotype</option>
       </select>
+    </div>
+
+    <div class="controls">
+      <label for="paper">Paper</label>
+      <select id="paper">
+        <option value="a4">A4</option>
+      </select>
+      <label for="dpi">Resolution</label>
+      <select id="dpi">
+        <option value="300">300 ppi</option>
+        <option value="600" selected>600 ppi</option>
+        <option value="1200">1200 ppi</option>
+      </select>
+      <label class="check">
+        <input type="checkbox" id="mirror">
+        Mirror for ink-down film
+      </label>
+    </div>
+
+    <div class="controls">
       <button id="go" type="submit" disabled>Make negative</button>
     </div>
   </form>
@@ -143,15 +180,18 @@
 
   <figure id="result" hidden>
     <img id="out" alt="The rendered digital negative">
-    <figcaption>
-      <a id="download" download="negative.png">Download negative.png</a>
-      <span id="meta"></span>
-    </figcaption>
+    <figcaption><span id="meta"></span></figcaption>
+    <div class="print">
+      <span>Print files</span>
+      <button type="button" class="button secondary" id="tiff">16-bit TIFF</button>
+      <button type="button" class="button secondary" id="pdf">PDF at page size</button>
+      <span id="print-info"></span>
+    </div>
   </figure>
 
-  <p class="note">Stage 2: density mapping and a monotone tone curve. Calibration from
-    measured prints, print sizing at physical scale and 16-bit export with an embedded grey
-    profile come next — the density range is currently assumed, not measured.</p>
+  <p class="note">Stage 3: density-mapped profiles plus print-ready export — 16-bit TIFF
+    with an embedded Grey Gamma 2.2 profile, and a PDF laid out at true page size. Tone
+    calibration from measured prints comes next; the density range is still assumed.</p>
 </main>
 
 <script>
@@ -161,11 +201,17 @@
   const dropTitle = document.getElementById('drop-title');
   const button = document.getElementById('go');
   const profileSelect = document.getElementById('profile');
+  const paperSelect = document.getElementById('paper');
+  const dpiSelect = document.getElementById('dpi');
+  const mirrorInput = document.getElementById('mirror');
   const status = document.getElementById('status');
   const result = document.getElementById('result');
   const out = document.getElementById('out');
-  const download = document.getElementById('download');
   const meta = document.getElementById('meta');
+  const printInfo = document.getElementById('print-info');
+  const tiffButton = document.getElementById('tiff');
+  const pdfButton = document.getElementById('pdf');
+
   let objectUrl = null;
 
   function describe(file) {
@@ -181,6 +227,15 @@
     button.disabled = false;
     status.textContent = '';
     status.classList.remove('error');
+  }
+
+  function paperName() {
+    const option = paperSelect.selectedOptions[0];
+    return option ? option.textContent : paperSelect.value;
+  }
+
+  function refreshPrintInfo() {
+    printInfo.textContent = paperName() + ' · ' + dpiSelect.value + ' ppi · 10 mm margins';
   }
 
   input.addEventListener('change', () => choose(input.files[0]));
@@ -203,12 +258,17 @@
     await render();
   });
 
-  profileSelect.addEventListener('change', () => {
-    if (input.files[0] && !result.hidden) render();
-  });
+  [profileSelect, paperSelect, dpiSelect, mirrorInput].forEach(control =>
+    control.addEventListener('change', () => {
+      refreshPrintInfo();
+      if (input.files[0] && !result.hidden) render();
+    }));
 
-  // The selector is built from the server's profile list, so the UI cannot drift out of
-  // sync with the profiles the imaging module actually offers.
+  tiffButton.addEventListener('click', () => download('tiff'));
+  pdfButton.addEventListener('click', () => download('pdf'));
+
+  // Selectors are built from the server's catalogue, so the UI cannot drift out of sync
+  // with what the API actually accepts.
   fetch('/api/profiles')
     .then(response => response.ok ? response.json() : Promise.reject())
     .then(profiles => {
@@ -220,33 +280,57 @@
         return option;
       }));
     })
-    .catch(() => { /* keep the single fallback option */ });
+    .catch(() => { /* keep the fallback option */ });
+
+  fetch('/api/papers')
+    .then(response => response.ok ? response.json() : Promise.reject())
+    .then(papers => {
+      paperSelect.replaceChildren(...papers.map(paper => {
+        const option = document.createElement('option');
+        option.value = paper.id;
+        option.textContent = paper.id === 'inch_8x10'
+          ? '8 × 10 in'
+          : paper.id.charAt(0).toUpperCase() + paper.id.slice(1);
+        return option;
+      }));
+      refreshPrintInfo();
+    })
+    .catch(refreshPrintInfo);
+
+  function formData(format) {
+    const body = new FormData();
+    body.append('file', input.files[0]);
+    body.append('profile', profileSelect.value);
+    body.append('format', format);
+    body.append('paper', paperSelect.value);
+    body.append('dpi', dpiSelect.value);
+    body.append('margin', '10');
+    body.append('mirror', mirrorInput.checked ? 'true' : 'false');
+    return body;
+  }
+
+  async function failure(response) {
+    let message = response.status + ' ' + response.statusText;
+    try { message = (await response.json()).message || message; } catch (_) { /* not json */ }
+    return new Error(message);
+  }
 
   async function render() {
-    const file = input.files[0];
-    if (!file) return;
+    if (!input.files[0]) return;
 
     button.disabled = true;
     status.classList.remove('error');
     status.textContent = 'Rendering…';
 
     try {
-      const body = new FormData();
-      body.append('file', file);
-      body.append('profile', profileSelect.value);
-      const response = await fetch('/api/render', { method: 'POST', body });
-
-      if (!response.ok) {
-        let message = response.status + ' ' + response.statusText;
-        try { message = (await response.json()).message || message; } catch (_) { /* not json */ }
-        throw new Error(message);
-      }
+      const response = await fetch('/api/render', { method: 'POST', body: formData('png') });
+      if (!response.ok) throw await failure(response);
 
       const blob = await response.blob();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       objectUrl = URL.createObjectURL(blob);
       out.src = objectUrl;
-      download.href = objectUrl;
+
       meta.textContent = [
         response.headers.get('X-Profile'),
         response.headers.get('X-Source-Format'),
@@ -256,11 +340,46 @@
 
       result.hidden = false;
       status.textContent = '';
+      refreshPrintInfo();
     } catch (error) {
       status.classList.add('error');
       status.textContent = error.message;
     } finally {
       button.disabled = false;
+    }
+  }
+
+  async function download(format) {
+    if (!input.files[0]) return;
+
+    const previous = status.textContent;
+    status.classList.remove('error');
+    status.textContent = 'Building ' + format.toUpperCase() + '…';
+
+    try {
+      const response = await fetch('/api/render', { method: 'POST', body: formData(format) });
+      if (!response.ok) throw await failure(response);
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'negative.' + format;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+      status.textContent = [
+        response.headers.get('X-Paper'),
+        response.headers.get('X-Effective-Ppi') + ' ppi',
+        response.headers.get('X-Print-Width-Mm') + ' × ' +
+        response.headers.get('X-Print-Height-Mm') + ' mm',
+        response.headers.get('X-Mirrored') === 'true' ? 'mirrored' : null
+      ].filter(Boolean).join(' · ');
+    } catch (error) {
+      status.classList.add('error');
+      status.textContent = error.message || previous;
     }
   }
 </script>
