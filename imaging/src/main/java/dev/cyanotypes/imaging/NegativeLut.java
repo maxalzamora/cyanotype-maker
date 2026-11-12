@@ -26,6 +26,8 @@ public final class NegativeLut {
             double raw = switch (profile.mapping()) {
                 case LINEAR -> 1.0 - lightness;
                 case DENSITY -> densityFraction(lightness, profile.printDmin(), profile.printDmax());
+                case CALIBRATED -> profile.response().valueFor(
+                        densityFraction(lightness, profile.printDmin(), profile.printDmax())) / 255.0;
             };
             double shaped = clamp01(profile.curve().apply(clamp01(raw)));
             int span = profile.whiteLevel() - profile.blackLevel();
