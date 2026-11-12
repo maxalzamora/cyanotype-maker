@@ -1,0 +1,19 @@
+server:
+  # PORT is honoured so the same jar works locally (8080) and behind a container
+  # platform that injects its own port.
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: cyanotypes
+  servlet:
+    multipart:
+      # Tomcat refuses oversized bodies before they reach the application.
+      max-file-size: 25MB
+      max-request-size: 26MB
+
+cyanotypes:
+  limits:
+    max-upload-bytes: 26214400   # 25 MiB
+    max-pixels: 80000000         # 80 MP: more than any negative we need
+    max-dimension: 20000
