@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cyanotypes — digital negative</title>
+<style>
+  :root {
+    --ink: #0a1420;
+    --paper: #f4f0e5;
+    --blue: #1e4f7a;
+    --blue-bright: #2f7ab8;
+    --line: rgba(10, 20, 32, .16);
+    --muted: #5b6b78;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: grid;
+    place-items: center;
+    padding: 32px 20px;
+  }
+  main { width: min(720px, 100%); }
+  header { margin-bottom: 28px; }
+  h1 {
+    font-family: ui-serif, Georgia, serif;
+    font-size: clamp(2rem, 6vw, 3rem);
+    font-weight: 500;
+    letter-spacing: -.02em;
+    margin: 0;
+  }
+  h1 span { color: var(--blue); }
+  .sub { margin: 10px 0 0; color: var(--muted); max-width: 46ch; }
+
+  form { display: grid; gap: 12px; }
+  .drop {
+    display: grid;
+    place-items: center;
+    gap: 6px;
+    min-height: 168px;
+    border: 1.5px dashed var(--line);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, .45);
+    cursor: pointer;
+    text-align: center;
+    padding: 24px;
+    transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--blue-bright); background: rgba(47, 122, 184, .07); }
+  .drop strong { font-weight: 600; }
+  .drop small { color: var(--muted); }
+  .drop.has-file { border-style: solid; border-color: var(--blue-bright); }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    align-items: center;
+  }
+  .controls label { font-size: .9rem; color: var(--muted); }
+  select {
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    min-width: 16rem;
+  }
+
+  button {
+    justify-self: start;
+    padding: 11px 22px;
+    border: 1px solid var(--blue);
+    border-radius: 3px;
+    background: var(--blue);
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .38; cursor: not-allowed; }
+  button:not(:disabled):hover { background: #163d5f; }
+
+  #status { min-height: 1.5em; margin: 14px 0 0; color: var(--blue); font-size: .94rem; }
+  #status.error { color: #9b2c2c; }
+
+  figure { margin: 22px 0 0; }
+  figure img {
+    width: 100%;
+    display: block;
+    border: 1px solid var(--line);
+    background: #fff;
+    image-rendering: auto;
+  }
+  figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    align-items: baseline;
+    margin-top: 10px;
+    font-size: .9rem;
+    color: var(--muted);
+  }
+  figcaption a { color: var(--blue); font-weight: 600; }
+  .note {
+    margin-top: 30px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-size: .84rem;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>cyan<span>o</span>types</h1>
+    <p class="sub">Drop a photograph. Get the negative you print on transparency
+      for a cyanotype contact print.</p>
+  </header>
+
+  <form id="form">
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="image/png,image/jpeg,image/tiff,image/gif" hidden>
+      <strong id="drop-title">Choose an image or drop it here</strong>
+      <small>PNG, JPEG, TIFF or GIF · up to 25 MB</small>
+    </label>
+    <div class="controls">
+      <label for="profile">Process profile</label>
+      <select id="profile">
+        <option value="cyanotype">Cyanotype</option>
+      </select>
+      <button id="go" type="submit" disabled>Make negative</button>
+    </div>
+  </form>
+
+  <p id="status" role="status"></p>
+
+  <figure id="result" hidden>
+    <img id="out" alt="The rendered digital negative">
+    <figcaption>
+      <a id="download" download="negative.png">Download negative.png</a>
+      <span id="meta"></span>
+    </figcaption>
+  </figure>
+
+  <p class="note">Stage 2: density mapping and a monotone tone curve. Calibration from
+    measured prints, print sizing at physical scale and 16-bit export with an embedded grey
+    profile come next — the density range is currently assumed, not measured.</p>
+</main>
+
+<script>
+  const form = document.getElementById('form');
+  const input = document.getElementById('file');
+  const drop = document.getElementById('drop');
+  const dropTitle = document.getElementById('drop-title');
+  const button = document.getElementById('go');
+  const profileSelect = document.getElementById('profile');
+  const status = document.getElementById('status');
+  const result = document.getElementById('result');
+  const out = document.getElementById('out');
+  const download = document.getElementById('download');
+  const meta = document.getElementById('meta');
+  let objectUrl = null;
+
+  function describe(file) {
+    const kb = file.size / 1024;
+    const size = kb > 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB';
+    return file.name + ' · ' + size;
+  }
+
+  function choose(file) {
+    if (!file) return;
+    dropTitle.textContent = describe(file);
+    drop.classList.add('has-file');
+    button.disabled = false;
+    status.textContent = '';
+    status.classList.remove('error');
+  }
+
+  input.addEventListener('change', () => choose(input.files[0]));
+
+  ['dragenter', 'dragover'].forEach(type =>
+    drop.addEventListener(type, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(type =>
+    drop.addEventListener(type, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => {
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    input.files = transfer.files;
+    choose(file);
+  });
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    await render();
+  });
+
+  profileSelect.addEventListener('change', () => {
+    if (input.files[0] && !result.hidden) render();
+  });
+
+  // The selector is built from the server's profile list, so the UI cannot drift out of
+  // sync with the profiles the imaging module actually offers.
+  fetch('/api/profiles')
+    .then(response => response.ok ? response.json() : Promise.reject())
+    .then(profiles => {
+      profileSelect.replaceChildren(...profiles.map(profile => {
+        const option = document.createElement('option');
+        option.value = profile.id;
+        option.textContent = profile.name;
+        option.selected = profile.id === 'cyanotype';
+        return option;
+      }));
+    })
+    .catch(() => { /* keep the single fallback option */ });
+
+  async function render() {
+    const file = input.files[0];
+    if (!file) return;
+
+    button.disabled = true;
+    status.classList.remove('error');
+    status.textContent = 'Rendering…';
+
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      body.append('profile', profileSelect.value);
+      const response = await fetch('/api/render', { method: 'POST', body });
+
+      if (!response.ok) {
+        let message = response.status + ' ' + response.statusText;
+        try { message = (await response.json()).message || message; } catch (_) { /* not json */ }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(blob);
+      out.src = objectUrl;
+      download.href = objectUrl;
+      meta.textContent = [
+        response.headers.get('X-Profile'),
+        response.headers.get('X-Source-Format'),
+        response.headers.get('X-Source-Width') + ' × ' +
+        response.headers.get('X-Source-Height')
+      ].join(' · ');
+
+      result.hidden = false;
+      status.textContent = '';
+    } catch (error) {
+      status.classList.add('error');
+      status.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
