@@ -5,6 +5,7 @@ import dev.cyanotypes.imaging.NegativePipeline;
 import dev.cyanotypes.imaging.NegativeRenderer;
 import dev.cyanotypes.imaging.PdfExporter;
 import dev.cyanotypes.imaging.PngEncoder;
+import dev.cyanotypes.imaging.ScanAnalyser;
 import dev.cyanotypes.imaging.TiffEncoder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,6 +41,11 @@ public class ImagingConfig {
     @Bean
     PdfExporter pdfExporter() {
         return new PdfExporter();
+    }
+
+    @Bean
+    ScanAnalyser scanAnalyser() {
+        return new ScanAnalyser();
     }
 
     @Bean

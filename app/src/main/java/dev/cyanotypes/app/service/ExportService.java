@@ -22,6 +22,10 @@ import java.io.IOException;
 /**
  * Turns a rendered negative into a print file: resampled to the paper, optionally
  * mirrored, then wrapped in TIFF or PDF.
+ *
+ * <p>The paper layout is also used for files that are not photographs — the calibration
+ * target is printed through exactly this path, so it is laid out at exactly the same size
+ * and resolution as the negatives it measures.
  */
 @Service
 public class ExportService {
@@ -56,22 +60,35 @@ public class ExportService {
                 ? Mirror.horizontal(rendered.image())
                 : rendered.image();
 
-        PrintLayout layout = PrintLayout.fit(spec, negative.getWidth(), negative.getHeight());
-        Gray16 raster = GrayResampler.resize(negative, layout.pixelWidth(), layout.pixelHeight());
+        PrintFile printed = printFile(negative, format, spec);
+        return new ExportedNegative(printed.bytes(), printed.format(), rendered.profile(),
+                spec, printed.layout(), printed.effectivePpi());
+    }
+
+    /**
+     * Lays an arbitrary greyscale image onto the paper and encodes it.
+     *
+     * <p>Separate from {@link #export} so a caller that already has pixels — the
+     * calibration target — does not have to fake an upload to get a print file.
+     */
+    public PrintFile printFile(BufferedImage image, ExportFormat format, PrintSpec spec) {
+        if (!format.isPrintFormat()) {
+            throw new IllegalArgumentException("not a print format: " + format.id());
+        }
+        PrintLayout layout = PrintLayout.fit(spec, image.getWidth(), image.getHeight());
+        Gray16 raster = GrayResampler.resize(image, layout.pixelWidth(), layout.pixelHeight());
 
         byte[] body;
         try {
             body = switch (format) {
                 case TIFF -> tiffEncoder.encode(raster, spec.dpi(), GRAY_GAMMA_22);
                 case PDF -> pdfExporter.write(raster, layout);
-                case PNG -> throw new IllegalStateException("handled by the render path");
+                case PNG -> throw new IllegalStateException("not a print format");
             };
         } catch (IOException e) {
             throw new ExportFailedException("could not build the " + format.id() + " file", e);
         }
-
-        return new ExportedNegative(body, format, rendered.profile(), spec, layout,
-                effectivePpi(raster, layout));
+        return new PrintFile(body, format, layout, effectivePpi(raster, layout));
     }
 
     /**
@@ -94,6 +111,18 @@ public class ExportService {
 
         public String fileName() {
             return "negative" + format.extension();
+        }
+    }
+
+    /** An encoded file plus the geometry it ended up with. */
+    public record PrintFile(
+            byte[] bytes,
+            ExportFormat format,
+            PrintLayout layout,
+            double effectivePpi) {
+
+        public String fileName(String stem) {
+            return stem + format.extension();
         }
     }
 }

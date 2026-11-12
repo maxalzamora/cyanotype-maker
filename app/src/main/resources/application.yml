@@ -17,3 +17,7 @@ cyanotypes:
     max-upload-bytes: 26214400   # 25 MiB
     max-pixels: 80000000         # 80 MP: more than any negative we need
     max-dimension: 20000
+  calibration:
+    # One JSON file per calibrated profile. Relative to the working directory so a
+    # container can mount a volume over it.
+    directory: data/profiles

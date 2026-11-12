@@ -1,7 +1,9 @@
 package dev.cyanotypes.app.web;
 
 import dev.cyanotypes.app.config.CyanotypesProperties;
+import dev.cyanotypes.app.service.CalibratedProfileStore;
 import dev.cyanotypes.app.service.ExportService;
+import dev.cyanotypes.app.service.ProfileRegistry;
 import dev.cyanotypes.app.service.RenderService;
 import dev.cyanotypes.imaging.ImageInspector;
 import dev.cyanotypes.imaging.ImageRejectedException;
@@ -13,14 +15,18 @@ import dev.cyanotypes.imaging.TiffEncoder;
 import dev.cyanotypes.imaging.UnknownFormatException;
 import dev.cyanotypes.imaging.UnknownPaperException;
 import dev.cyanotypes.imaging.UnknownProfileException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 
 import javax.imageio.ImageIO;
 
@@ -31,14 +37,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RenderControllerTest {
 
-    private final RenderService renderService = new RenderService(
-            new NegativePipeline(new ImageInspector(80_000_000, 20_000),
-                    new NegativeRenderer(), new PngEncoder()),
-            new CyanotypesProperties(
-                    new CyanotypesProperties.Limits(25 * 1024 * 1024, 80_000_000, 20_000)));
-    private final RenderController controller = new RenderController(
-            renderService,
-            new ExportService(renderService, new TiffEncoder(), new PdfExporter()));
+    @TempDir
+    Path profilesDirectory;
+
+    private RenderController controller;
+
+    @BeforeEach
+    void setUp() {
+        RenderService renderService = new RenderService(
+                new NegativePipeline(new ImageInspector(80_000_000, 20_000),
+                        new NegativeRenderer(), new PngEncoder()),
+                new ProfileRegistry(new CalibratedProfileStore(
+                        profilesDirectory, JsonMapper.builder().build())),
+                new CyanotypesProperties(
+                        new CyanotypesProperties.Limits(25 * 1024 * 1024, 80_000_000, 20_000),
+                new CyanotypesProperties.Calibration("data/profiles")));
+        controller = new RenderController(
+                renderService,
+                new ExportService(renderService, new TiffEncoder(), new PdfExporter()));
+    }
 
     @Test
     void returnsAPngAndReportsTheRealSourceSizeAndProfile() throws IOException {

@@ -1,16 +1,32 @@
 package dev.cyanotypes.app.web;
 
+import dev.cyanotypes.app.service.CalibratedProfileStore;
+import dev.cyanotypes.app.service.ProfileRegistry;
 import dev.cyanotypes.imaging.NegativeRenderer;
 import dev.cyanotypes.imaging.PngEncoder;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DiagnosticsControllerTest {
 
-    private final DiagnosticsController controller =
-            new DiagnosticsController(new NegativeRenderer(), new PngEncoder());
+    @TempDir
+    Path profilesDirectory;
+
+    private DiagnosticsController controller;
+
+    @BeforeEach
+    void setUp() {
+        controller = new DiagnosticsController(new NegativeRenderer(), new PngEncoder(),
+                new ProfileRegistry(new CalibratedProfileStore(
+                        profilesDirectory, JsonMapper.builder().build())));
+    }
 
     @Test
     void theRenderedWedgeMatchesTheProfileLut() {

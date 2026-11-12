@@ -1,5 +1,6 @@
 package dev.cyanotypes.app.web;
 
+import dev.cyanotypes.app.service.ProfileRegistry;
 import dev.cyanotypes.imaging.Paper;
 import dev.cyanotypes.imaging.PrintSpec;
 import dev.cyanotypes.imaging.ProcessProfile;
@@ -16,9 +17,15 @@ import java.util.List;
 @RestController
 public class CatalogController {
 
+    private final ProfileRegistry profiles;
+
+    public CatalogController(ProfileRegistry profiles) {
+        this.profiles = profiles;
+    }
+
     @GetMapping("/api/profiles")
     public List<ProfileSummary> profiles() {
-        return ProcessProfile.all().stream()
+        return profiles.all().stream()
                 .map(profile -> new ProfileSummary(
                         profile.id(),
                         profile.displayName(),
@@ -26,7 +33,8 @@ public class CatalogController {
                         profile.printDmin(),
                         profile.printDmax(),
                         profile.blackLevel(),
-                        profile.whiteLevel()))
+                        profile.whiteLevel(),
+                        profile.response() == null ? 0 : profile.response().size()))
                 .toList();
     }
 
@@ -43,6 +51,10 @@ public class CatalogController {
         return new Defaults(PrintSpec.DEFAULT_DPI, PrintSpec.DEFAULT_MARGIN_MM, "a4", "cyanotype");
     }
 
+    /**
+     * @param measuredPoints number of measured densities behind a calibrated profile;
+     *                       zero for the built-in assumptions
+     */
     public record ProfileSummary(
             String id,
             String name,
@@ -50,7 +62,8 @@ public class CatalogController {
             double printDmin,
             double printDmax,
             int blackLevel,
-            int whiteLevel) {
+            int whiteLevel,
+            int measuredPoints) {
     }
 
     public record PaperSummary(String id, double widthMm, double heightMm) {

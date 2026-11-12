@@ -1,5 +1,6 @@
 package dev.cyanotypes.app.web;
 
+import dev.cyanotypes.app.service.ProfileRegistry;
 import dev.cyanotypes.imaging.NegativeLut;
 import dev.cyanotypes.imaging.NegativeRenderer;
 import dev.cyanotypes.imaging.PngEncoder;
@@ -29,10 +30,13 @@ public class DiagnosticsController {
 
     private final NegativeRenderer renderer;
     private final PngEncoder encoder;
+    private final ProfileRegistry profiles;
 
-    public DiagnosticsController(NegativeRenderer renderer, PngEncoder encoder) {
+    public DiagnosticsController(NegativeRenderer renderer, PngEncoder encoder,
+                                 ProfileRegistry profiles) {
         this.renderer = renderer;
         this.encoder = encoder;
+        this.profiles = profiles;
     }
 
     /**
@@ -47,7 +51,7 @@ public class DiagnosticsController {
     public WedgeReport stepWedge(
             @RequestParam(name = "profile", defaultValue = "cyanotype") String profile) {
 
-        ProcessProfile resolved = ProcessProfile.byId(profile);
+        ProcessProfile resolved = profiles.byId(profile);
         NegativeLut lut = NegativeLut.of(resolved);
         BufferedImage negative = renderer.render(StepWedge.source(STEPS), resolved);
 
@@ -70,7 +74,7 @@ public class DiagnosticsController {
     @GetMapping(path = "/step-wedge.png", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> stepWedgeImage(
             @RequestParam(name = "profile", defaultValue = "cyanotype") String profile) {
-        ProcessProfile resolved = ProcessProfile.byId(profile);
+        ProcessProfile resolved = profiles.byId(profile);
         BufferedImage negative = renderer.render(StepWedge.source(STEPS), resolved);
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_PNG)

@@ -1,47 +1,31 @@
 package dev.cyanotypes.app.service;
 
 import dev.cyanotypes.app.config.CyanotypesProperties;
-import dev.cyanotypes.imaging.ImageRejectedException;
 import dev.cyanotypes.imaging.NegativePipeline;
 import dev.cyanotypes.imaging.ProcessProfile;
 import dev.cyanotypes.imaging.RenderedNegative;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-
 @Service
 public class RenderService {
 
     private final NegativePipeline pipeline;
+    private final ProfileRegistry profiles;
     private final CyanotypesProperties.Limits limits;
 
-    public RenderService(NegativePipeline pipeline, CyanotypesProperties properties) {
+    public RenderService(NegativePipeline pipeline, ProfileRegistry profiles,
+                         CyanotypesProperties properties) {
         this.pipeline = pipeline;
+        this.profiles = profiles;
         this.limits = properties.limits();
     }
 
     public RenderedNegative render(MultipartFile file, String profileId) {
-        if (file == null || file.isEmpty()) {
-            throw new ImageRejectedException(
-                    ImageRejectedException.Reason.EMPTY, "choose an image to upload");
-        }
         // Resolve before touching the bytes: an unknown profile is the caller's mistake
         // and should not cost a decode.
-        ProcessProfile profile = ProcessProfile.byId(profileId);
-
-        byte[] bytes;
-        try {
-            bytes = file.getBytes();
-        } catch (IOException e) {
-            throw new ImageRejectedException(
-                    ImageRejectedException.Reason.CORRUPT, "could not read the upload", e);
-        }
-        if (bytes.length > limits.maxUploadBytes()) {
-            throw new ImageRejectedException(
-                    ImageRejectedException.Reason.TOO_LARGE,
-                    "upload is " + bytes.length + " bytes; limit is " + limits.maxUploadBytes());
-        }
+        ProcessProfile profile = profiles.byId(profileId);
+        byte[] bytes = Uploads.read(file, limits, "an image");
         return pipeline.render(bytes, profile);
     }
 }

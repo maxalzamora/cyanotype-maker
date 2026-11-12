@@ -1,6 +1,8 @@
 package dev.cyanotypes.app.web;
 
 import dev.cyanotypes.app.service.ExportFailedException;
+import dev.cyanotypes.app.service.ProfileStoreException;
+import dev.cyanotypes.imaging.CalibrationRejectedException;
 import dev.cyanotypes.imaging.ImageRejectedException;
 import dev.cyanotypes.imaging.UnknownFormatException;
 import dev.cyanotypes.imaging.UnknownPaperException;
@@ -66,6 +68,23 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiError> handleExportFailure(ExportFailedException e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiError("EXPORT_FAILED", e.getMessage()));
+    }
+
+    /**
+     * A valid image that is not a usable measurement. 422 rather than 400: the request was
+     * well formed, the photograph just cannot be read as a wedge. The reason suffix tells
+     * the UI which advice to show.
+     */
+    @ExceptionHandler(CalibrationRejectedException.class)
+    public ResponseEntity<ApiError> handleCalibrationRejection(CalibrationRejectedException e) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
+                .body(new ApiError("CALIBRATION_" + e.reason().name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(ProfileStoreException.class)
+    public ResponseEntity<ApiError> handleProfileStore(ProfileStoreException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiError("PROFILE_STORE_FAILED", e.getMessage()));
     }
 
     @ExceptionHandler(MultipartException.class)
