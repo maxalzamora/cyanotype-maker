@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cyanotypes — calibrate</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  h2 {
+    font-family: ui-serif, Georgia, serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0 0 6px;
+    letter-spacing: -.01em;
+  }
+  section.step {
+    border-top: 1px solid var(--line);
+    padding: 20px 0 4px;
+  }
+  section.step p { margin: 6px 0 14px; color: var(--muted); font-size: .94rem; }
+  .hint { font-size: .84rem !important; }
+  .controls a.button { padding: 9px 16px; font-size: .92rem; }
+  input[type="text"] {
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    min-width: 16rem;
+  }
+  canvas {
+    width: 100%;
+    height: 220px;
+    display: block;
+    border: 1px solid var(--line);
+    background: #fff;
+  }
+  ul.notes { margin: 12px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
+  ul.notes li { margin: 4px 0; }
+  .back { font-size: .9rem; }
+  .back a { color: var(--blue); font-weight: 600; }
+  .simulated { font-size: .84rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>cali<span>bra</span>te</h1>
+    <p class="sub">Print a step wedge, expose it, photograph the print. The measurement
+      replaces the assumed density curve with the one your printer, film and chemistry
+      actually produce.</p>
+  </header>
+
+  <section class="step">
+    <h2>1 · Print the target</h2>
+    <p>Print on the same transparency and at the same resolution you use for negatives.
+      Expose it like a print, then let it dry.</p>
+    <div class="controls">
+      <a class="button" href="/api/calibration/target?format=pdf" download>PDF</a>
+      <a class="button secondary" href="/api/calibration/target?format=tiff" download>16-bit TIFF</a>
+      <a class="button secondary" href="/api/calibration/target?format=png" download>Preview PNG</a>
+    </div>
+    <p class="hint">21 bars from solid ink to clear film, edge to edge. No labels: the only
+      thing you have to do with the print is crop to the stripes.</p>
+  </section>
+
+  <section class="step">
+    <h2>2 · Photograph the print</h2>
+    <p>Crop to the bars, light it evenly, and avoid reflections. The photograph does not
+      need to be colour-accurate — it only has to order the tones and find both ends of
+      the range.</p>
+
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="image/png,image/jpeg,image/tiff,image/gif" hidden>
+      <strong id="drop-title">Choose a photograph or drop it here</strong>
+      <small>PNG, JPEG, TIFF or GIF · up to 25 MB</small>
+    </label>
+
+    <div class="controls" style="margin-top: 12px">
+      <input type="text" id="name" placeholder="Name this print (optional)" maxlength="60">
+      <button id="go" type="button" disabled>Measure and save</button>
+      <button id="simulate" type="button" class="button secondary">Use a simulated scan</button>
+    </div>
+    <p class="hint simulated">No darkroom to hand? The simulated scan is a photograph of a
+      print that was never made, generated from a known curve. It exercises the whole
+      measurement, and reports how closely the profile reproduces it.</p>
+  </section>
+
+  <p id="status" role="status"></p>
+
+  <section id="result" hidden>
+    <h2>3 · What was measured</h2>
+    <canvas id="curve" width="680" height="220"></canvas>
+    <ul class="notes" id="notes"></ul>
+    <p class="back"><span id="summary"></span> <a href="/">Use the profile →</a></p>
+  </section>
+
+  <p class="note">The measurement is relative: a phone camera cannot know absolute
+    density. It can find paper white, find the darkest blue the print reaches, and say
+    where each bar sits in between — which is exactly what a tone curve needs.</p>
+</main>
+
+<script>
+  const drop = document.getElementById('drop');
+  const input = document.getElementById('file');
+  const dropTitle = document.getElementById('drop-title');
+  const nameInput = document.getElementById('name');
+  const goButton = document.getElementById('go');
+  const simulateButton = document.getElementById('simulate');
+  const status = document.getElementById('status');
+  const result = document.getElementById('result');
+  const notes = document.getElementById('notes');
+  const summary = document.getElementById('summary');
+
+  let chosen = null;
+
+  function choose(file, label) {
+    chosen = file;
+    dropTitle.textContent = label;
+    drop.classList.add('has-file');
+    goButton.disabled = false;
+    status.textContent = '';
+    status.classList.remove('error');
+  }
+
+  function describe(file) {
+    const kb = file.size / 1024;
+    const size = kb > 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB';
+    return file.name + ' · ' + size;
+  }
+
+  input.addEventListener('change', () => {
+    if (input.files[0]) choose(input.files[0], describe(input.files[0]));
+  });
+
+  ['dragenter', 'dragover'].forEach(type =>
+    drop.addEventListener(type, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(type =>
+    drop.addEventListener(type, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => {
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    input.files = transfer.files;
+    choose(file, describe(file));
+  });
+
+  simulateButton.addEventListener('click', async () => {
+    simulateButton.disabled = true;
+    status.classList.remove('error');
+    status.textContent = 'Fetching the simulated scan…';
+    try {
+      const response = await fetch('/api/calibration/simulated-scan.png');
+      if (!response.ok) throw new Error(response.status + ' ' + response.statusText);
+      const blob = await response.blob();
+      choose(new File([blob], 'simulated-scan.png', { type: 'image/png' }),
+        'simulated-scan.png · synthetic');
+      status.textContent = 'This is a fabricated photograph. Press "Measure and save".';
+    } catch (error) {
+      status.classList.add('error');
+      status.textContent = error.message;
+    } finally {
+      simulateButton.disabled = false;
+    }
+  });
+
+  goButton.addEventListener('click', async () => {
+    if (!chosen) return;
+    goButton.disabled = true;
+    status.classList.remove('error');
+    status.textContent = 'Measuring…';
+
+    const body = new FormData();
+    body.append('file', chosen);
+    if (nameInput.value.trim()) body.append('name', nameInput.value.trim());
+
+    try {
+      const response = await fetch('/api/calibration', { method: 'POST', body });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message || response.statusText);
+
+      show(payload);
+      status.textContent = '';
+      if (chosen.name === 'simulated-scan.png') {
+        status.textContent = 'Synthetic measurement saved as ' + payload.profileId + '.';
+      }
+    } catch (error) {
+      status.classList.add('error');
+      status.textContent = error.message;
+    } finally {
+      goButton.disabled = false;
+    }
+  });
+
+  function show(report) {
+    notes.replaceChildren(...report.notes.map(note => {
+      const item = document.createElement('li');
+      item.textContent = note;
+      return item;
+    }));
+    summary.textContent = report.patches.length + ' patches · density range ' +
+      report.measuredDensityRange.toFixed(2) + ' · ' + report.profileId + '.';
+    result.hidden = false;
+    draw(report.patches);
+    result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // The measurement, drawn the way it is used: file value against where that value lands
+  // in the print's density range. A steep section is where the print separates tones; a
+  // flat one is where it cannot.
+  function draw(patches) {
+    const canvas = document.getElementById('curve');
+    const ratio = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+
+    const context = canvas.getContext('2d');
+    context.scale(ratio, ratio);
+    const left = 34;
+    const right = width - 14;
+    const top = 14;
+    const bottom = height - 26;
+
+    context.strokeStyle = 'rgba(10, 20, 32, .16)';
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(left, top);
+    context.lineTo(left, bottom);
+    context.lineTo(right, bottom);
+    context.stroke();
+
+    const x = density => left + density * (right - left);
+    const y = value => bottom - (value / 255) * (bottom - top);
+
+    context.strokeStyle = '#1e4f7a';
+    context.lineWidth = 2;
+    context.beginPath();
+    patches.forEach((patch, index) => {
+      const px = x(patch.normalisedDensity);
+      const py = y(patch.fileValue);
+      if (index === 0) context.moveTo(px, py); else context.lineTo(px, py);
+    });
+    context.stroke();
+
+    context.fillStyle = '#1e4f7a';
+    patches.forEach(patch => {
+      context.beginPath();
+      context.arc(x(patch.normalisedDensity), y(patch.fileValue), 2.6, 0, Math.PI * 2);
+      context.fill();
+    });
+
+    context.fillStyle = '#5b6b78';
+    context.font = '11px ui-sans-serif, system-ui, sans-serif';
+    context.textAlign = 'left';
+    context.fillText('clear film', 2, top + 4);
+    context.fillText('solid ink', 2, bottom + 4);
+    context.textAlign = 'center';
+    context.fillText('paper white', left + 4, height - 8);
+    context.fillText('darkest print', right - 4, height - 8);
+  }
+</script>
+</body>
+</html>

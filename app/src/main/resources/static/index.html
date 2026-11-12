@@ -4,133 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cyanotypes — digital negative</title>
-<style>
-  :root {
-    --ink: #0a1420;
-    --paper: #f4f0e5;
-    --blue: #1e4f7a;
-    --blue-bright: #2f7ab8;
-    --line: rgba(10, 20, 32, .16);
-    --muted: #5b6b78;
-  }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    margin: 0;
-    background: var(--paper);
-    color: var(--ink);
-    font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    display: grid;
-    place-items: center;
-    padding: 32px 20px;
-  }
-  main { width: min(720px, 100%); }
-  header { margin-bottom: 28px; }
-  h1 {
-    font-family: ui-serif, Georgia, serif;
-    font-size: clamp(2rem, 6vw, 3rem);
-    font-weight: 500;
-    letter-spacing: -.02em;
-    margin: 0;
-  }
-  h1 span { color: var(--blue); }
-  .sub { margin: 10px 0 0; color: var(--muted); max-width: 46ch; }
-
-  form { display: grid; gap: 12px; }
-  .drop {
-    display: grid;
-    place-items: center;
-    gap: 6px;
-    min-height: 168px;
-    border: 1.5px dashed var(--line);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, .45);
-    cursor: pointer;
-    text-align: center;
-    padding: 24px;
-    transition: border-color .15s, background .15s;
-  }
-  .drop:hover, .drop.over { border-color: var(--blue-bright); background: rgba(47, 122, 184, .07); }
-  .drop strong { font-weight: 600; }
-  .drop small { color: var(--muted); }
-  .drop.has-file { border-style: solid; border-color: var(--blue-bright); }
-
-  .controls {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px 14px;
-    align-items: center;
-  }
-  .controls label { font-size: .9rem; color: var(--muted); }
-  select {
-    padding: 9px 12px;
-    border: 1px solid var(--line);
-    border-radius: 3px;
-    background: #fff;
-    color: var(--ink);
-    font: inherit;
-  }
-  #profile { min-width: 15rem; }
-  .check { display: inline-flex; align-items: center; gap: 7px; font-size: .9rem; color: var(--muted); }
-
-  button, .button {
-    padding: 11px 22px;
-    border: 1px solid var(--blue);
-    border-radius: 3px;
-    background: var(--blue);
-    color: #fff;
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: none;
-  }
-  button:disabled { opacity: .38; cursor: not-allowed; }
-  button:not(:disabled):hover, .button:hover { background: #163d5f; }
-  .button.secondary {
-    background: transparent;
-    color: var(--blue);
-  }
-  .button.secondary:hover { background: rgba(30, 79, 122, .08); }
-
-  #status { min-height: 1.5em; margin: 14px 0 0; color: var(--blue); font-size: .94rem; }
-  #status.error { color: #9b2c2c; }
-
-  figure { margin: 22px 0 0; }
-  figure img {
-    width: 100%;
-    display: block;
-    border: 1px solid var(--line);
-    background: #fff;
-  }
-  figcaption {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 18px;
-    align-items: baseline;
-    margin-top: 10px;
-    font-size: .9rem;
-    color: var(--muted);
-  }
-  figcaption a { color: var(--blue); font-weight: 600; }
-  .print {
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--line);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    font-size: .9rem;
-    color: var(--muted);
-  }
-  .note {
-    margin-top: 30px;
-    padding-top: 16px;
-    border-top: 1px solid var(--line);
-    font-size: .84rem;
-    color: var(--muted);
-  }
-</style>
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <main>
@@ -189,9 +63,8 @@
     </div>
   </figure>
 
-  <p class="note">Stage 3: density-mapped profiles plus print-ready export — 16-bit TIFF
-    with an embedded Grey Gamma 2.2 profile, and a PDF laid out at true page size. Tone
-    calibration from measured prints comes next; the density range is still assumed.</p>
+  <p class="note">Stage 4: tone calibration from a measured print. <a href="/calibrate.html">Calibrate
+    a profile</a> from a scanned step wedge; the result appears in the profile list above.</p>
 </main>
 
 <script>
