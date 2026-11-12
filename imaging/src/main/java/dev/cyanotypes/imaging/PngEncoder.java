@@ -7,8 +7,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 /**
- * Writes 8-bit greyscale PNG. Greyscale, not RGB, so downstream tools can see the
- * single channel and so the same code path extends to the 16-bit TIFF in stage 3.
+ * Writes an 8-bit PNG of whatever image it is given: greyscale for the negative, RGB for
+ * the cyanotype preview. Greyscale stays greyscale so downstream tools can see the single
+ * channel and so the same code path extends to the 16-bit TIFF in stage 3.
  */
 public final class PngEncoder {
 

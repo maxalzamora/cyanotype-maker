@@ -3,257 +3,452 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
 <title>cyanotypes — digital negative</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231d4e79'/%3E%3Ccircle cx='8' cy='8' r='3' fill='%23f6f1e4'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<main>
-  <header>
-    <h1>cyan<span>o</span>types</h1>
-    <p class="sub">Drop a photograph. Get the negative you print on transparency
-      for a cyanotype contact print.</p>
+<main class="shell">
+
+  <header class="site-header">
+    <div class="brand">
+      <h1 class="wordmark"><a href="/">cyan<em>o</em>types</a></h1>
+      <p class="tagline">A digital negative for the cyanotype contact print.</p>
+    </div>
+    <nav class="nav" aria-label="Pages">
+      <a href="/" aria-current="page">Print</a>
+      <a href="/calibrate.html">Calibrate</a>
+    </nav>
   </header>
 
-  <form id="form">
-    <label class="drop" id="drop">
-      <input type="file" id="file" accept="image/png,image/jpeg,image/tiff,image/gif" hidden>
-      <strong id="drop-title">Choose an image or drop it here</strong>
-      <small>PNG, JPEG, TIFF or GIF · up to 25 MB</small>
-    </label>
+  <div class="studio">
 
-    <div class="controls">
-      <label for="profile">Process profile</label>
-      <select id="profile">
-        <option value="cyanotype">Cyanotype</option>
-      </select>
-    </div>
+    <form class="panel" id="form">
+      <div class="section">
+        <label class="drop" id="drop" for="file" tabindex="0">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 16V4m0 0L7 9m5-5 5 5"/>
+            <path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/>
+          </svg>
+          <span class="drop-text">
+            <strong id="drop-title">Choose a photograph</strong>
+            <small id="drop-hint">or drop it here · PNG, JPEG, TIFF, GIF · 25 MB max</small>
+          </span>
+          <input type="file" id="file" accept="image/png,image/jpeg,image/tiff,image/gif" hidden>
+        </label>
+      </div>
 
-    <div class="controls">
-      <label for="paper">Paper</label>
-      <select id="paper">
-        <option value="a4">A4</option>
-      </select>
-      <label for="dpi">Resolution</label>
-      <select id="dpi">
-        <option value="300">300 ppi</option>
-        <option value="600" selected>600 ppi</option>
-        <option value="1200">1200 ppi</option>
-      </select>
-      <label class="check">
-        <input type="checkbox" id="mirror">
-        Mirror for ink-down film
-      </label>
-    </div>
+      <div class="section">
+        <label class="eyebrow" for="profile" id="profile-label">Process profile</label>
+        <select id="profile" aria-labelledby="profile-label">
+          <option value="cyanotype">Cyanotype</option>
+        </select>
+      </div>
 
-    <div class="controls">
-      <button id="go" type="submit" disabled>Make negative</button>
-    </div>
-  </form>
+      <details class="section settings">
+        <summary>Print settings</summary>
+        <div class="settings-body">
+          <label class="field" for="paper">
+            <span class="eyebrow">Paper</span>
+            <select id="paper">
+              <option value="a4">A4</option>
+            </select>
+          </label>
+          <label class="field" for="dpi">
+            <span class="eyebrow">Resolution</span>
+            <select id="dpi">
+              <option value="300">300 ppi</option>
+              <option value="600" selected>600 ppi</option>
+              <option value="1200">1200 ppi</option>
+            </select>
+          </label>
+          <label class="field" for="margin">
+            <span class="eyebrow">Margin (mm)</span>
+            <input type="number" id="margin" value="10" min="0" max="50" step="1" inputmode="numeric">
+          </label>
+          <label class="check">
+            <input type="checkbox" id="mirror">
+            Mirror for printing on the back of the film
+          </label>
+        </div>
+      </details>
 
-  <p id="status" role="status"></p>
+      <div class="section">
+        <span class="eyebrow">Negative files</span>
+        <div class="chips">
+          <button type="button" class="btn" id="tiff" disabled>16-bit TIFF</button>
+          <button type="button" class="btn" id="pdf" disabled>PDF at page size</button>
+        </div>
+        <p class="hint" id="print-info">A4 · 600 ppi · 10 mm margin</p>
+      </div>
 
-  <figure id="result" hidden>
-    <img id="out" alt="The rendered digital negative">
-    <figcaption><span id="meta"></span></figcaption>
-    <div class="print">
-      <span>Print files</span>
-      <button type="button" class="button secondary" id="tiff">16-bit TIFF</button>
-      <button type="button" class="button secondary" id="pdf">PDF at page size</button>
-      <span id="print-info"></span>
-    </div>
-  </figure>
+      <p class="status" id="status" role="status"></p>
+    </form>
 
-  <p class="note">Stage 4: tone calibration from a measured print. <a href="/calibrate.html">Calibrate
-    a profile</a> from a scanned step wedge; the result appears in the profile list above.</p>
+    <section class="viewer" aria-label="Preview">
+      <div class="toolbar">
+        <div class="segmented" role="group" aria-label="Show">
+          <button type="button" data-view="print" aria-pressed="true">Print</button>
+          <button type="button" data-view="negative" aria-pressed="false">Negative</button>
+        </div>
+        <a class="quiet" id="save-preview" href="#" download hidden>Save preview PNG</a>
+      </div>
+
+      <div class="stage" id="stage">
+        <div class="empty" id="empty">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+          <p id="empty-text">Your print appears here: Prussian blue where the film lets UV through.</p>
+        </div>
+        <img id="out" alt="Cyanotype preview" hidden>
+      </div>
+
+      <p class="caption" id="caption">Choose a photograph to see the print it would make.</p>
+      <p class="meta"><span id="meta"></span></p>
+    </section>
+
+  </div>
+
+  <footer class="footer">
+    <p>Stage 4 · calibrated from a photographed print.
+      <a href="/calibrate.html">Calibrate a profile</a> to replace the assumed curve with yours.</p>
+  </footer>
+
 </main>
 
 <script>
-  const form = document.getElementById('form');
-  const input = document.getElementById('file');
   const drop = document.getElementById('drop');
+  const input = document.getElementById('file');
   const dropTitle = document.getElementById('drop-title');
-  const button = document.getElementById('go');
+  const dropHint = document.getElementById('drop-hint');
   const profileSelect = document.getElementById('profile');
   const paperSelect = document.getElementById('paper');
   const dpiSelect = document.getElementById('dpi');
+  const marginInput = document.getElementById('margin');
   const mirrorInput = document.getElementById('mirror');
-  const status = document.getElementById('status');
-  const result = document.getElementById('result');
-  const out = document.getElementById('out');
-  const meta = document.getElementById('meta');
-  const printInfo = document.getElementById('print-info');
   const tiffButton = document.getElementById('tiff');
   const pdfButton = document.getElementById('pdf');
+  const printInfo = document.getElementById('print-info');
+  const status = document.getElementById('status');
+  const stage = document.getElementById('stage');
+  const empty = document.getElementById('empty');
+  const emptyText = document.getElementById('empty-text');
+  const out = document.getElementById('out');
+  const caption = document.getElementById('caption');
+  const meta = document.getElementById('meta');
+  const savePreview = document.getElementById('save-preview');
+  const toggles = Array.from(document.querySelectorAll('.segmented button'));
 
-  let objectUrl = null;
+  const state = {
+    file: null,
+    view: 'print',
+    printUrl: null,
+    negativeUrl: null,
+    meta: null,
+  };
 
-  function describe(file) {
-    const kb = file.size / 1024;
-    const size = kb > 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB';
-    return file.name + ' · ' + size;
-  }
+  let generation = 0;
+  let negativeRequest = { token: -1, promise: null };
 
   function choose(file) {
     if (!file) return;
-    dropTitle.textContent = describe(file);
+    state.file = file;
+    state.negativeUrl = clearUrl(state.negativeUrl);
+    negativeRequest = { token: -1, promise: null };
+
+    dropTitle.textContent = file.name;
+    dropHint.textContent = describeSize(file) + ' · click to replace';
     drop.classList.add('has-file');
-    button.disabled = false;
+    tiffButton.disabled = false;
+    pdfButton.disabled = false;
     status.textContent = '';
     status.classList.remove('error');
+    emptyText.textContent = 'Your print appears here: Prussian blue where the film lets UV through.';
+
+    loadPrint();
   }
 
-  function paperName() {
-    const option = paperSelect.selectedOptions[0];
-    return option ? option.textContent : paperSelect.value;
+  function describeSize(file) {
+    const kb = file.size / 1024;
+    return kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB';
   }
 
-  function refreshPrintInfo() {
-    printInfo.textContent = paperName() + ' · ' + dpiSelect.value + ' ppi · 10 mm margins';
+  function clearUrl(url) {
+    if (url) URL.revokeObjectURL(url);
+    return null;
   }
 
-  input.addEventListener('change', () => choose(input.files[0]));
-
-  ['dragenter', 'dragover'].forEach(type =>
-    drop.addEventListener(type, e => { e.preventDefault(); drop.classList.add('over'); }));
-  ['dragleave', 'drop'].forEach(type =>
-    drop.addEventListener(type, e => { e.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', e => {
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    const transfer = new DataTransfer();
-    transfer.items.add(file);
-    input.files = transfer.files;
-    choose(file);
-  });
-
-  form.addEventListener('submit', async event => {
-    event.preventDefault();
-    await render();
-  });
-
-  [profileSelect, paperSelect, dpiSelect, mirrorInput].forEach(control =>
-    control.addEventListener('change', () => {
-      refreshPrintInfo();
-      if (input.files[0] && !result.hidden) render();
-    }));
-
-  tiffButton.addEventListener('click', () => download('tiff'));
-  pdfButton.addEventListener('click', () => download('pdf'));
-
-  // Selectors are built from the server's catalogue, so the UI cannot drift out of sync
-  // with what the API actually accepts.
-  fetch('/api/profiles')
-    .then(response => response.ok ? response.json() : Promise.reject())
-    .then(profiles => {
-      profileSelect.replaceChildren(...profiles.map(profile => {
-        const option = document.createElement('option');
-        option.value = profile.id;
-        option.textContent = profile.name;
-        option.selected = profile.id === 'cyanotype';
-        return option;
-      }));
-    })
-    .catch(() => { /* keep the fallback option */ });
-
-  fetch('/api/papers')
-    .then(response => response.ok ? response.json() : Promise.reject())
-    .then(papers => {
-      paperSelect.replaceChildren(...papers.map(paper => {
-        const option = document.createElement('option');
-        option.value = paper.id;
-        option.textContent = paper.id === 'inch_8x10'
-          ? '8 × 10 in'
-          : paper.id.charAt(0).toUpperCase() + paper.id.slice(1);
-        return option;
-      }));
-      refreshPrintInfo();
-    })
-    .catch(refreshPrintInfo);
-
-  function formData(format) {
+  function fields(format) {
     const body = new FormData();
-    body.append('file', input.files[0]);
+    body.append('file', state.file);
     body.append('profile', profileSelect.value);
-    body.append('format', format);
-    body.append('paper', paperSelect.value);
-    body.append('dpi', dpiSelect.value);
-    body.append('margin', '10');
-    body.append('mirror', mirrorInput.checked ? 'true' : 'false');
+    if (format) {
+      body.append('format', format);
+      body.append('paper', paperSelect.value);
+      body.append('dpi', dpiSelect.value);
+      body.append('margin', marginInput.value || '10');
+      body.append('mirror', mirrorInput.checked ? 'true' : 'false');
+    }
     return body;
   }
 
+  async function post(url, body) {
+    const response = await fetch(url, { method: 'POST', body });
+    if (!response.ok) throw await failure(response);
+    return response;
+  }
+
   async function failure(response) {
-    let message = response.status + ' ' + response.statusText;
-    try { message = (await response.json()).message || message; } catch (_) { /* not json */ }
+    if (response.status === 413) {
+      return new Error('That image is larger than the upload limit.');
+    }
+    let message = 'Request failed (' + response.status + ').';
+    try {
+      const payload = await response.json();
+      if (payload && payload.message) message = payload.message;
+    } catch (_) { /* not JSON: keep the status code */ }
     return new Error(message);
   }
 
-  async function render() {
-    if (!input.files[0]) return;
+  async function loadPrint() {
+    if (!state.file) return;
+    const token = ++generation;
 
-    button.disabled = true;
+    stage.setAttribute('aria-busy', 'true');
+    status.textContent = '';
     status.classList.remove('error');
-    status.textContent = 'Rendering…';
 
     try {
-      const response = await fetch('/api/render', { method: 'POST', body: formData('png') });
-      if (!response.ok) throw await failure(response);
-
+      const response = await post('/api/preview', fields(null));
+      if (token !== generation) return;
       const blob = await response.blob();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      objectUrl = URL.createObjectURL(blob);
-      out.src = objectUrl;
+      if (token !== generation) return;
 
-      meta.textContent = [
-        response.headers.get('X-Profile'),
-        response.headers.get('X-Source-Format'),
-        response.headers.get('X-Source-Width') + ' × ' +
-        response.headers.get('X-Source-Height')
-      ].join(' · ');
+      state.printUrl = clearUrl(state.printUrl);
+      state.printUrl = URL.createObjectURL(blob);
+      state.negativeUrl = clearUrl(state.negativeUrl);
+      negativeRequest = { token: -1, promise: null };
+      state.meta = {
+        profile: response.headers.get('X-Profile') || profileSelect.value,
+        format: response.headers.get('X-Source-Format') || '',
+        width: response.headers.get('X-Source-Width') || '',
+        height: response.headers.get('X-Source-Height') || '',
+      };
 
-      result.hidden = false;
-      status.textContent = '';
-      refreshPrintInfo();
+      savePreview.href = state.printUrl;
+      savePreview.download = state.meta.profile + '-preview.png';
+      savePreview.hidden = false;
+      showMeta();
+      setView(state.view);
+
+      if (state.view === 'negative') await loadNegative();
+      else present(state.printUrl);
     } catch (error) {
+      if (token !== generation) return;
+      state.printUrl = clearUrl(state.printUrl);
+      out.hidden = true;
+      out.removeAttribute('src');
+      savePreview.hidden = true;
+      empty.hidden = false;
+      emptyText.textContent = 'That image could not be rendered.';
+      caption.textContent = 'No print yet.';
       status.classList.add('error');
       status.textContent = error.message;
     } finally {
-      button.disabled = false;
+      if (token === generation) stage.removeAttribute('aria-busy');
     }
   }
 
-  async function download(format) {
-    if (!input.files[0]) return;
+  async function loadNegative() {
+    if (!state.file) return;
+    if (state.negativeUrl) {
+      present(state.negativeUrl);
+      return;
+    }
+    if (negativeRequest.token === generation && negativeRequest.promise) {
+      return negativeRequest.promise;
+    }
 
-    const previous = status.textContent;
+    const token = generation;
+    const request = (async () => {
+      stage.setAttribute('aria-busy', 'true');
+      try {
+        const response = await post('/api/render', fields('png'));
+        const blob = await response.blob();
+        if (token !== generation) return;
+        state.negativeUrl = URL.createObjectURL(blob);
+        if (state.view === 'negative') present(state.negativeUrl);
+      } catch (error) {
+        if (token === generation) {
+          status.classList.add('error');
+          status.textContent = error.message;
+        }
+      } finally {
+        if (token === generation) stage.removeAttribute('aria-busy');
+      }
+    })();
+
+    negativeRequest = { token, promise: request };
+    await request;
+  }
+
+  function present(url) {
+    out.src = url;
+    out.hidden = false;
+    empty.hidden = true;
+  }
+
+  function setView(view) {
+    state.view = view;
+    toggles.forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.view === view));
+    });
+    out.alt = view === 'print' ? 'The cyanotype print' : 'The digital negative';
+    caption.textContent = view === 'print'
+      ? 'The print: Prussian blue where the film let UV through.'
+      : 'The negative: high values are clear film, which prints dark.';
+  }
+
+  function show(view) {
+    setView(view);
+    if (!state.file) return;
+    if (view === 'negative') loadNegative();
+    else if (state.printUrl) present(state.printUrl);
+  }
+
+  function showMeta() {
+    if (!state.meta) {
+      meta.textContent = '';
+      return;
+    }
+    const size = state.meta.width && state.meta.height
+      ? state.meta.width + ' × ' + state.meta.height + ' px'
+      : '';
+    meta.textContent = [state.meta.profile, state.meta.format, size].filter(Boolean).join(' · ');
+  }
+
+  function refreshPrintInfo() {
+    const paper = paperSelect.selectedOptions[0];
+    const paperName = paper ? paper.textContent : paperSelect.value;
+    printInfo.textContent = paperName + ' · ' + dpiSelect.value + ' ppi · '
+      + (marginInput.value || '0') + ' mm margin';
+  }
+
+  async function download(format) {
+    if (!state.file) return;
+    tiffButton.disabled = true;
+    pdfButton.disabled = true;
     status.classList.remove('error');
     status.textContent = 'Building ' + format.toUpperCase() + '…';
 
     try {
-      const response = await fetch('/api/render', { method: 'POST', body: formData(format) });
-      if (!response.ok) throw await failure(response);
-
+      const response = await post('/api/render', fields(format));
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = 'negative.' + format;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      const name = (response.headers.get('X-Profile') || 'negative') + '-negative.' + format;
+      save(blob, name);
 
       status.textContent = [
         response.headers.get('X-Paper'),
         response.headers.get('X-Effective-Ppi') + ' ppi',
-        response.headers.get('X-Print-Width-Mm') + ' × ' +
-        response.headers.get('X-Print-Height-Mm') + ' mm',
+        response.headers.get('X-Print-Width-Mm') + ' × '
+          + response.headers.get('X-Print-Height-Mm') + ' mm',
         response.headers.get('X-Mirrored') === 'true' ? 'mirrored' : null
       ].filter(Boolean).join(' · ');
     } catch (error) {
       status.classList.add('error');
-      status.textContent = error.message || previous;
+      status.textContent = error.message;
+    } finally {
+      tiffButton.disabled = false;
+      pdfButton.disabled = false;
     }
+  }
+
+  function save(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = name;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    input.value = '';
+    choose(file);
+  });
+
+  drop.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      input.click();
+    }
+  });
+
+  ['dragenter', 'dragover'].forEach(type =>
+    drop.addEventListener(type, event => {
+      event.preventDefault();
+      drop.classList.add('over');
+    }));
+  ['dragleave', 'drop'].forEach(type =>
+    drop.addEventListener(type, event => {
+      event.preventDefault();
+      drop.classList.remove('over');
+    }));
+  drop.addEventListener('drop', event => choose(event.dataTransfer.files[0]));
+
+  document.getElementById('form').addEventListener('submit', event => event.preventDefault());
+
+  profileSelect.addEventListener('change', loadPrint);
+  [paperSelect, dpiSelect, marginInput].forEach(control =>
+    control.addEventListener('input', refreshPrintInfo));
+  mirrorInput.addEventListener('change', refreshPrintInfo);
+
+  tiffButton.addEventListener('click', () => download('tiff'));
+  pdfButton.addEventListener('click', () => download('pdf'));
+
+  toggles.forEach(button => {
+    button.addEventListener('click', () => show(button.dataset.view));
+  });
+
+  // Selectors are built from the server's catalogue, so the UI cannot drift out of sync
+  // with what the API actually accepts.
+  Promise.all([
+    fetch('/api/defaults').then(response => response.ok ? response.json() : Promise.reject()),
+    fetch('/api/profiles').then(response => response.ok ? response.json() : Promise.reject()),
+    fetch('/api/papers').then(response => response.ok ? response.json() : Promise.reject())
+  ]).then(([defaults, profiles, papers]) => {
+    profileSelect.replaceChildren(...profiles.map(profile =>
+      option(profile.id, profile.name, defaults.profile)));
+    paperSelect.replaceChildren(...papers.map(paper =>
+      option(paper.id, paperLabel(paper.id), defaults.paper)));
+    dpiSelect.value = String(defaults.dpi);
+    marginInput.value = String(defaults.marginMm);
+    refreshPrintInfo();
+  }).catch(() => { /* the static fallbacks keep the page usable */ });
+
+  function option(value, text, selectedValue) {
+    const element = document.createElement('option');
+    element.value = value;
+    element.textContent = text;
+    element.selected = value === selectedValue;
+    return element;
+  }
+
+  function paperLabel(id) {
+    if (id === 'inch_8x10') return '8 × 10 in';
+    if (id === 'letter') return 'Letter';
+    return id.toUpperCase();
   }
 </script>
 </body>

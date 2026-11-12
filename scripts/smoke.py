@@ -5,8 +5,9 @@
     python3 scripts/smoke.py photo.jpg
 
 Posts an image to /api/render as PNG, TIFF and PDF, checks that the bytes really are
-those formats, prints the step-wedge self-check, and runs the calibration loop end to end
-with the simulated scan. Uses only the standard library so it runs anywhere Python does.
+those formats, checks the cyanotype preview, prints the step-wedge self-check, and runs
+the calibration loop end to end with the simulated scan. Uses only the standard library
+so it runs anywhere Python does.
 """
 
 import json
@@ -69,6 +70,27 @@ def check(source, fmt, signature, headers, **fields):
     return True
 
 
+def check_preview(source):
+    """The negative coloured as the print: PNG, 8-bit RGB, capped for the screen."""
+    with post_file(source, endpoint="/api/preview", profile="cyanotype") as response:
+        data = response.read()
+        width = int(response.headers.get("X-Preview-Width", "0"))
+        height = int(response.headers.get("X-Preview-Height", "0"))
+        profile = response.headers.get("X-Profile")
+    if not data.startswith(b"\x89PNG"):
+        print("FAIL: preview is not a PNG")
+        return False
+    if not (0 < width <= 1400 and 0 < height <= 1400):
+        print(f"FAIL: preview size {width}x{height} is outside the 1400 px cap")
+        return False
+    # IHDR: bit depth at byte 24, colour type at byte 25; 2 is truecolour.
+    if data[24] != 8 or data[25] != 2:
+        print(f"FAIL: preview is not 8-bit RGB (depth={data[24]}, colour={data[25]})")
+        return False
+    print(f"ok  preview {width}x{height} RGB, {len(data)} bytes, profile {profile}")
+    return True
+
+
 def check_calibration():
     """Print target → synthetic scan → measured profile → usable as a profile."""
     with urllib.request.urlopen(
@@ -121,6 +143,7 @@ def main(argv):
                 dpi="150")
     ok &= check(source, "pdf", b"%PDF",
                 ("X-Paper", "X-Effective-Ppi", "X-Mirrored"), dpi="150")
+    ok &= check_preview(source)
 
     with urllib.request.urlopen(BASE + "/api/diagnostics/step-wedge", timeout=30) as response:
         report = json.load(response)

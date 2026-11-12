@@ -8,8 +8,9 @@ reproduce a photograph you expose through an inverted image. This service produc
 inverted image, shaped for what the process can actually print.
 
 > **Status: stage 4.** Perceptual conversion, density mapping, process profiles, a monotone
-> tone curve, print-ready export (16-bit TIFF and a page-sized PDF), and calibration from a
-> measured print. See [Calibration](#calibration).
+> tone curve, print-ready export (16-bit TIFF and a page-sized PDF), calibration from a
+> measured print, and a preview of the print itself. See [Calibration](#calibration) and
+> [The print preview](#the-print-preview).
 
 In the output file a **high** value means clear film: UV passes, the paper turns blue, the
 print is dark. So the negative looks like a photographic negative, which is the point.
@@ -94,9 +95,27 @@ required to recover the curve it was generated from to within 0.02 of normalised
 and a calibrated profile of a *linear* print has to reproduce the analytic `cyanotype` LUT
 to within two levels across all 256 values.
 
+## The print preview
+
+`POST /api/preview` returns the negative coloured as the print it would make, so you can see
+the result before cutting film. It is not a second tone mapping: the negative's value *is* the
+print's density (high value, clear film, more UV, darker blue), so the preview only adds the
+colour of the process. Whatever range the film reaches is the range the print reaches, which
+is why `cyanotype-soft` previews as a visibly softer print.
+
+Paper and ink are mixed in **density** — a geometric interpolation of reflectances, which is
+how stacked absorbing layers combine — rather than alpha-blending blue over white. That is
+why the midtones pass through denim blue instead of washing out, and why the highlights stay
+slightly warm. Deterministic grain and a 4% corner falloff keep it from looking like a colour
+ramp.
+
+The preview has the print's framing: the photograph is resampled down to 1400 px on the long
+side, never cropped. What it cannot show is the paper's texture, the irregularity of a
+hand-coated edge, or the way a real print shifts as it oxidises over the first day or two.
+
 ## Print files
 
-A preview is not a print file. Three outputs, for three jobs:
+A preview is not a print file. Three files, for three jobs:
 
 | format | what it is | what it is for |
 |---|---|---|
@@ -149,6 +168,12 @@ docker compose up --build              # http://localhost:3000
 ./gradlew test                         # the interesting part
 ```
 
+Open <http://localhost:3000>. The print preview appears as soon as a photograph is chosen;
+the print settings are folded away because they only affect the downloadable files. The
+[calibrate](http://localhost:3000/calibrate.html) page has the same shape: the steps on the
+left, the measurement on the right. Both pages follow `prefers-color-scheme` and build their
+selectors from `/api/profiles` and `/api/papers`, so the interface cannot drift from the API.
+
 ## API
 
 `POST /api/render` — `multipart/form-data`:
@@ -173,6 +198,14 @@ docker compose up --build              # http://localhost:3000
 The declared `Content-Type` is ignored. Format is decided by magic bytes, and dimensions
 are read from the header **before** pixels are allocated — a 40-byte PNG claiming
 30000×30000 is rejected instead of consuming 2.7 GB.
+
+`POST /api/preview` — the print, not the negative. Same `file` and `profile` fields as
+`/api/render`, no `format`:
+
+| | |
+|---|---|
+| `200` | an RGB PNG, at most 1400 px on the long side, with `X-Profile`, `X-Source-Format`, `X-Source-Width`, `X-Source-Height`, `X-Preview-Width`, `X-Preview-Height` |
+| errors | the same as `/api/render` |
 
 Other endpoints:
 
@@ -220,6 +253,8 @@ Two failure modes this catches immediately:
 
 In the test suite, `NegativeRendererTest` checks all 256 greyscale values under `linear`,
 and `NegativeLutTest` pins the density numbers with hard-coded expectations.
+`CyanotypePreviewTest` pins the preview's ends — opaque film is paper, clear film is Prussian
+blue — and checks that the palette never gets lighter as exposure rises.
 
 Calibration can be checked without a darkroom:
 
@@ -256,6 +291,16 @@ python3 -c "from pypdf import PdfReader; p=PdfReader('negative.pdf').pages[0]; \
   print(p.mediabox, p['/Resources']['/XObject'])"
 ```
 
+The print preview is checkable the same way — RGB, capped at 1400 px, and monotone from
+paper to ink across the 21 bars of the calibration target:
+
+```bash
+curl -s -F file=@target.png -F profile=cyanotype -o preview.png localhost:3000/api/preview
+python3 -c "from PIL import Image; im=Image.open('preview.png'); \
+  print(im.mode, im.size, im.getpixel((0, im.height // 2)))"
+# RGB (1400, 467) (15, 50, 84)
+```
+
 ## Layout
 
 ```
@@ -268,7 +313,8 @@ imaging/     pure Java, no Spring on the classpath
   ProcessProfile     print range, output levels, curve, measured response
   NegativeLut        the whole 8-bit transform as a table
   NegativeRenderer   applies the LUT, writes a greyscale raster
-  PngEncoder         8-bit greyscale output
+  CyanotypePreview   the negative as a print: paper and ink, mixed in density
+  PngEncoder         8-bit PNG output (greyscale or RGB)
   NegativePipeline   inspect → decode → render → encode
   StepWedge          known-input test fixture
   CalibrationTarget  the printable 21-bar wedge, and the grid that reads it back

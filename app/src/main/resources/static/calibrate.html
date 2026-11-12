@@ -3,148 +3,175 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1319" media="(prefers-color-scheme: dark)">
 <title>cyanotypes — calibrate</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231d4e79'/%3E%3Ccircle cx='8' cy='8' r='3' fill='%23f6f1e4'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/style.css">
-<style>
-  h2 {
-    font-family: ui-serif, Georgia, serif;
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin: 0 0 6px;
-    letter-spacing: -.01em;
-  }
-  section.step {
-    border-top: 1px solid var(--line);
-    padding: 20px 0 4px;
-  }
-  section.step p { margin: 6px 0 14px; color: var(--muted); font-size: .94rem; }
-  .hint { font-size: .84rem !important; }
-  .controls a.button { padding: 9px 16px; font-size: .92rem; }
-  input[type="text"] {
-    padding: 9px 12px;
-    border: 1px solid var(--line);
-    border-radius: 3px;
-    background: #fff;
-    color: var(--ink);
-    font: inherit;
-    min-width: 16rem;
-  }
-  canvas {
-    width: 100%;
-    height: 220px;
-    display: block;
-    border: 1px solid var(--line);
-    background: #fff;
-  }
-  ul.notes { margin: 12px 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
-  ul.notes li { margin: 4px 0; }
-  .back { font-size: .9rem; }
-  .back a { color: var(--blue); font-weight: 600; }
-  .simulated { font-size: .84rem; color: var(--muted); }
-</style>
 </head>
 <body>
-<main>
-  <header>
-    <h1>cali<span>bra</span>te</h1>
-    <p class="sub">Print a step wedge, expose it, photograph the print. The measurement
-      replaces the assumed density curve with the one your printer, film and chemistry
-      actually produce.</p>
+<main class="shell">
+
+  <header class="site-header">
+    <div class="brand">
+      <h1 class="wordmark"><a href="/">cyan<em>o</em>types</a></h1>
+      <p class="tagline">Measure your own print, instead of trusting the assumed curve.</p>
+    </div>
+    <nav class="nav" aria-label="Pages">
+      <a href="/">Print</a>
+      <a href="/calibrate.html" aria-current="page">Calibrate</a>
+    </nav>
   </header>
 
-  <section class="step">
-    <h2>1 · Print the target</h2>
-    <p>Print on the same transparency and at the same resolution you use for negatives.
-      Expose it like a print, then let it dry.</p>
-    <div class="controls">
-      <a class="button" href="/api/calibration/target?format=pdf" download>PDF</a>
-      <a class="button secondary" href="/api/calibration/target?format=tiff" download>16-bit TIFF</a>
-      <a class="button secondary" href="/api/calibration/target?format=png" download>Preview PNG</a>
+  <div class="studio">
+
+    <div class="panel">
+
+      <section class="section">
+        <h2 class="step-title"><span class="step-index">1</span> Print the target</h2>
+        <p class="prose">Print on the same transparency and at the same resolution you use
+          for negatives. Expose it like a print, then let it dry.</p>
+        <div class="chips">
+          <a class="btn primary" href="/api/calibration/target?format=pdf" download>PDF</a>
+          <a class="btn" href="/api/calibration/target?format=tiff" download>16-bit TIFF</a>
+          <a class="btn" href="/api/calibration/target?format=png" download>PNG</a>
+        </div>
+        <p class="hint">21 bars from solid ink to clear film, edge to edge. No labels: the
+          only thing you have to do with the print is crop to the stripes.</p>
+      </section>
+
+      <section class="section">
+        <h2 class="step-title"><span class="step-index">2</span> Photograph the print</h2>
+        <p class="prose">Crop to the bars, light it evenly, and avoid reflections. The
+          photograph does not need to be colour-accurate — it only has to order the tones
+          and find both ends of the range.</p>
+
+        <label class="drop" id="drop" for="file" tabindex="0">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 16V4m0 0L7 9m5-5 5 5"/>
+            <path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/>
+          </svg>
+          <span class="drop-text">
+            <strong id="drop-title">Choose a photograph</strong>
+            <small id="drop-hint">or drop it here · PNG, JPEG, TIFF, GIF · 25 MB max</small>
+          </span>
+          <input type="file" id="file" accept="image/png,image/jpeg,image/tiff,image/gif" hidden>
+        </label>
+
+        <label class="field" for="name">
+          <span class="eyebrow">Profile name (optional)</span>
+          <input type="text" id="name" placeholder="for example: spring paper" maxlength="60">
+        </label>
+
+        <div class="chips">
+          <button class="btn primary" id="go" type="button" disabled>Measure and save</button>
+          <button class="btn" id="simulate" type="button">Use a simulated scan</button>
+        </div>
+
+        <p class="hint">No darkroom to hand? The simulated scan is a photograph of a print
+          that was never made, generated from a known curve. It exercises the whole
+          measurement, and reports how closely the profile reproduces it.</p>
+      </section>
+
+      <p class="status" id="status" role="status"></p>
+
     </div>
-    <p class="hint">21 bars from solid ink to clear film, edge to edge. No labels: the only
-      thing you have to do with the print is crop to the stripes.</p>
-  </section>
 
-  <section class="step">
-    <h2>2 · Photograph the print</h2>
-    <p>Crop to the bars, light it evenly, and avoid reflections. The photograph does not
-      need to be colour-accurate — it only has to order the tones and find both ends of
-      the range.</p>
+    <section class="viewer" aria-label="Measurement">
+      <div class="stage plot-stage">
+        <div class="empty" id="plot-empty">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 20V4m0 16h18"/>
+            <path d="M3 16c3 0 4-3 6-6s4 3 6-2 3-4 6-4"/>
+          </svg>
+          <p>Print the target, photograph the print, and the measured curve appears here.</p>
+        </div>
 
-    <label class="drop" id="drop">
-      <input type="file" id="file" accept="image/png,image/jpeg,image/tiff,image/gif" hidden>
-      <strong id="drop-title">Choose a photograph or drop it here</strong>
-      <small>PNG, JPEG, TIFF or GIF · up to 25 MB</small>
-    </label>
+        <div id="result" hidden>
+          <div class="result-head">
+            <h2 class="step-title"><span class="step-index">3</span> What was measured</h2>
+            <a class="quiet" href="/">Use the profile →</a>
+          </div>
+          <canvas id="curve" width="680" height="240" role="img"
+                  aria-label="Measured tone curve"></canvas>
+          <ul class="notes" id="notes"></ul>
+          <p class="meta" id="summary"></p>
+        </div>
+      </div>
+    </section>
 
-    <div class="controls" style="margin-top: 12px">
-      <input type="text" id="name" placeholder="Name this print (optional)" maxlength="60">
-      <button id="go" type="button" disabled>Measure and save</button>
-      <button id="simulate" type="button" class="button secondary">Use a simulated scan</button>
-    </div>
-    <p class="hint simulated">No darkroom to hand? The simulated scan is a photograph of a
-      print that was never made, generated from a known curve. It exercises the whole
-      measurement, and reports how closely the profile reproduces it.</p>
-  </section>
+  </div>
 
-  <p id="status" role="status"></p>
+  <footer class="footer">
+    <p>The measurement is relative: a camera cannot know absolute density. It finds paper
+      white, the darkest blue the print reaches, and where each bar sits between them —
+      which is all a tone curve needs.</p>
+  </footer>
 
-  <section id="result" hidden>
-    <h2>3 · What was measured</h2>
-    <canvas id="curve" width="680" height="220"></canvas>
-    <ul class="notes" id="notes"></ul>
-    <p class="back"><span id="summary"></span> <a href="/">Use the profile →</a></p>
-  </section>
-
-  <p class="note">The measurement is relative: a phone camera cannot know absolute
-    density. It can find paper white, find the darkest blue the print reaches, and say
-    where each bar sits in between — which is exactly what a tone curve needs.</p>
 </main>
 
 <script>
   const drop = document.getElementById('drop');
   const input = document.getElementById('file');
   const dropTitle = document.getElementById('drop-title');
+  const dropHint = document.getElementById('drop-hint');
   const nameInput = document.getElementById('name');
   const goButton = document.getElementById('go');
   const simulateButton = document.getElementById('simulate');
   const status = document.getElementById('status');
+  const plotEmpty = document.getElementById('plot-empty');
   const result = document.getElementById('result');
   const notes = document.getElementById('notes');
   const summary = document.getElementById('summary');
+  const canvas = document.getElementById('curve');
 
   let chosen = null;
+  let patches = [];
+
+  function describeSize(file) {
+    const kb = file.size / 1024;
+    return kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB';
+  }
 
   function choose(file, label) {
     chosen = file;
-    dropTitle.textContent = label;
+    dropTitle.textContent = label || file.name;
+    dropHint.textContent = describeSize(file) + ' · click to replace';
     drop.classList.add('has-file');
     goButton.disabled = false;
     status.textContent = '';
     status.classList.remove('error');
   }
 
-  function describe(file) {
-    const kb = file.size / 1024;
-    const size = kb > 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB';
-    return file.name + ' · ' + size;
-  }
-
   input.addEventListener('change', () => {
-    if (input.files[0]) choose(input.files[0], describe(input.files[0]));
+    const file = input.files[0];
+    input.value = '';
+    if (file) choose(file);
+  });
+
+  drop.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      input.click();
+    }
   });
 
   ['dragenter', 'dragover'].forEach(type =>
-    drop.addEventListener(type, e => { e.preventDefault(); drop.classList.add('over'); }));
+    drop.addEventListener(type, event => {
+      event.preventDefault();
+      drop.classList.add('over');
+    }));
   ['dragleave', 'drop'].forEach(type =>
-    drop.addEventListener(type, e => { e.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', e => {
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    const transfer = new DataTransfer();
-    transfer.items.add(file);
-    input.files = transfer.files;
-    choose(file, describe(file));
+    drop.addEventListener(type, event => {
+      event.preventDefault();
+      drop.classList.remove('over');
+    }));
+  drop.addEventListener('drop', event => {
+    const file = event.dataTransfer.files[0];
+    if (file) choose(file);
   });
 
   simulateButton.addEventListener('click', async () => {
@@ -153,7 +180,7 @@
     status.textContent = 'Fetching the simulated scan…';
     try {
       const response = await fetch('/api/calibration/simulated-scan.png');
-      if (!response.ok) throw new Error(response.status + ' ' + response.statusText);
+      if (!response.ok) throw new Error('Request failed (' + response.status + ').');
       const blob = await response.blob();
       choose(new File([blob], 'simulated-scan.png', { type: 'image/png' }),
         'simulated-scan.png · synthetic');
@@ -179,12 +206,14 @@
     try {
       const response = await fetch('/api/calibration', { method: 'POST', body });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message || response.statusText);
+      if (!response.ok) throw new Error(payload.message || 'Request failed (' + response.status + ').');
 
       show(payload);
-      status.textContent = '';
-      if (chosen.name === 'simulated-scan.png') {
-        status.textContent = 'Synthetic measurement saved as ' + payload.profileId + '.';
+      status.textContent = chosen.name === 'simulated-scan.png'
+        ? 'Synthetic measurement saved as ' + payload.profileId + '.'
+        : '';
+      if (window.matchMedia('(max-width: 820px)').matches) {
+        result.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     } catch (error) {
       status.classList.add('error');
@@ -195,37 +224,52 @@
   });
 
   function show(report) {
+    patches = report.patches;
     notes.replaceChildren(...report.notes.map(note => {
       const item = document.createElement('li');
       item.textContent = note;
       return item;
     }));
-    summary.textContent = report.patches.length + ' patches · density range ' +
-      report.measuredDensityRange.toFixed(2) + ' · ' + report.profileId + '.';
+    summary.textContent = [
+      report.profileId,
+      report.patches.length + ' patches',
+      'density range ' + report.measuredDensityRange.toFixed(2)
+    ].join(' · ');
+    plotEmpty.hidden = true;
     result.hidden = false;
-    draw(report.patches);
-    result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    draw();
   }
 
   // The measurement, drawn the way it is used: file value against where that value lands
   // in the print's density range. A steep section is where the print separates tones; a
   // flat one is where it cannot.
-  function draw(patches) {
-    const canvas = document.getElementById('curve');
+  function draw() {
+    if (result.hidden) return;
+
     const ratio = window.devicePixelRatio || 1;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
+    if (!width || !height) return;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
 
     const context = canvas.getContext('2d');
-    context.scale(ratio, ratio);
-    const left = 34;
-    const right = width - 14;
-    const top = 14;
-    const bottom = height - 26;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, width, height);
 
-    context.strokeStyle = 'rgba(10, 20, 32, .16)';
+    const token = name =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const line = token('--line-strong');
+    const accent = token('--blue');
+    const muted = token('--muted');
+    const mono = token('--mono') || 'ui-monospace, monospace';
+
+    const left = 40;
+    const right = width - 16;
+    const top = 16;
+    const bottom = height - 30;
+
+    context.strokeStyle = line;
     context.lineWidth = 1;
     context.beginPath();
     context.moveTo(left, top);
@@ -236,8 +280,9 @@
     const x = density => left + density * (right - left);
     const y = value => bottom - (value / 255) * (bottom - top);
 
-    context.strokeStyle = '#1e4f7a';
+    context.strokeStyle = accent;
     context.lineWidth = 2;
+    context.lineJoin = 'round';
     context.beginPath();
     patches.forEach((patch, index) => {
       const px = x(patch.normalisedDensity);
@@ -246,22 +291,27 @@
     });
     context.stroke();
 
-    context.fillStyle = '#1e4f7a';
+    context.fillStyle = accent;
     patches.forEach(patch => {
       context.beginPath();
       context.arc(x(patch.normalisedDensity), y(patch.fileValue), 2.6, 0, Math.PI * 2);
       context.fill();
     });
 
-    context.fillStyle = '#5b6b78';
-    context.font = '11px ui-sans-serif, system-ui, sans-serif';
+    context.fillStyle = muted;
+    context.font = '11px ' + mono;
     context.textAlign = 'left';
     context.fillText('clear film', 2, top + 4);
     context.fillText('solid ink', 2, bottom + 4);
     context.textAlign = 'center';
-    context.fillText('paper white', left + 4, height - 8);
-    context.fillText('darkest print', right - 4, height - 8);
+    context.fillText('paper white', left + 4, height - 10);
+    context.fillText('darkest print', right - 4, height - 10);
   }
+
+  new ResizeObserver(draw).observe(canvas.parentElement);
+
+  const dark = window.matchMedia('(prefers-color-scheme: dark)');
+  dark.addEventListener('change', draw);
 </script>
 </body>
 </html>

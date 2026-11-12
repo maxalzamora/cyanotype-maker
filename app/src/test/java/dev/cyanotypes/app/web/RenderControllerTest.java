@@ -3,6 +3,7 @@ package dev.cyanotypes.app.web;
 import dev.cyanotypes.app.config.CyanotypesProperties;
 import dev.cyanotypes.app.service.CalibratedProfileStore;
 import dev.cyanotypes.app.service.ExportService;
+import dev.cyanotypes.app.service.PreviewService;
 import dev.cyanotypes.app.service.ProfileRegistry;
 import dev.cyanotypes.app.service.RenderService;
 import dev.cyanotypes.imaging.ImageInspector;
@@ -24,6 +25,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -54,7 +56,8 @@ class RenderControllerTest {
                 new CyanotypesProperties.Calibration("data/profiles")));
         controller = new RenderController(
                 renderService,
-                new ExportService(renderService, new TiffEncoder(), new PdfExporter()));
+                new ExportService(renderService, new TiffEncoder(), new PdfExporter()),
+                new PreviewService(renderService, new PngEncoder()));
     }
 
     @Test
@@ -74,6 +77,27 @@ class RenderControllerTest {
         assertNotNull(body);
         assertEquals((byte) 0x89, body[0]);
         assertEquals('P', body[1]);
+    }
+
+    @Test
+    void previewColoursTheNegativeAsAPrint() throws IOException {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "photo.png", "image/png", png(24, 12));
+
+        ResponseEntity<byte[]> response = controller.preview(file, "cyanotype");
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(MediaType.IMAGE_PNG, response.getHeaders().getContentType());
+        assertEquals("cyanotype", response.getHeaders().getFirst("X-Profile"));
+        assertEquals("24", response.getHeaders().getFirst("X-Preview-Width"));
+        assertEquals("12", response.getHeaders().getFirst("X-Preview-Height"));
+
+        byte[] body = response.getBody();
+        assertNotNull(body);
+        BufferedImage print = ImageIO.read(new ByteArrayInputStream(body));
+        int pixel = print.getRGB(12, 6);
+        assertTrue(((pixel >> 8) & 0xFF) > ((pixel >> 16) & 0xFF),
+                "a black photograph prints Prussian blue, not dark grey");
     }
 
     @Test
