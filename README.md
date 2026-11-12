@@ -7,9 +7,9 @@ Cyanotype is a negative process: the paper turns Prussian blue where UV reaches 
 reproduce a photograph you expose through an inverted image. This service produces that
 inverted image, shaped for what the process can actually print.
 
-> **Status: stage 2.** Perceptual conversion, density mapping, process profiles and a
-> monotone tone curve. Calibration from measured prints, physical sizing, 16-bit TIFF and
-> PDF export are not built yet — see [Not built yet](#not-built-yet).
+> **Status: stage 3.** Perceptual conversion, density mapping, process profiles, a monotone
+> tone curve, and print-ready export (16-bit TIFF and a page-sized PDF). Calibration from
+> measured prints is not built yet — see [Not built yet](#not-built-yet).
 
 In the output file a **high** value means clear film: UV passes, the paper turns blue, the
 print is dark. So the negative looks like a photographic negative, which is the point.
@@ -50,6 +50,39 @@ Deep shadows do clip in the density profiles, at reflectance below about 4%. Thi
 physical: a print cannot be denser than its Dmax. `cyanotype-soft` exists to show the
 workaround — give up both ends deliberately rather than letting the bottom block up.
 
+## Print files
+
+A preview is not a print file. Three outputs, for three jobs:
+
+| format | what it is | what it is for |
+|---|---|---|
+| `png` | 8-bit greyscale at the photograph's own resolution | checking the negative on screen |
+| `tiff` | 16-bit greyscale, uncompressed, resolution tag, Grey Gamma 2.2 embedded | the file you send to the printer |
+| `pdf` | one page of the chosen paper, image centred inside the margins | printing without having to set a size |
+
+The TIFF is written by hand rather than through `ImageIO`, because the tags that matter
+here — resolution unit and ICC profile — are exactly the ones the metadata API treats as an
+afterthought. It is the baseline subset of TIFF 6.0: one IFD, strips, `BlackIsZero`,
+`SampleFormat = unsigned`.
+
+The ICC profile is **generated**, not bundled. Java's built-in `CS_GRAY` profile is
+*linear*: converting 0.5 through it yields sRGB 0.735. Tagging that as "Gamma 2.2" would
+shift every tone in the print, so `GrayProfile` writes a valid ICC v2 monitor profile from
+the spec — `desc`, `wtpt` at D50, and a `kTRC` gamma curve. LittleCMS opens it and reports
+"Gray Gamma 2.2".
+
+16 bits is not decoration: the tone curve and the resampling both produce intermediate
+values, so carrying 16 bits to the file avoids quantising them twice. PDF gets 8 bits
+because 16-bit grey is inconsistently handled across viewers; the TIFF is the archival file.
+
+`dpi` means pixels per inch **on paper** — the negative is resampled to that density for
+the requested stock, not merely tagged with it. A 3:2 photograph on A4 with 10 mm margins
+at 300 ppi comes out 2244 × 1496 px, drawn 190.0 × 126.7 mm. The response reports the
+effective value (`X-Effective-Ppi`) because fitting to whole pixels rounds it slightly.
+
+`mirror=true` flips the image. It is needed when the film is coated on one side and must
+face the paper ink-down: you then look through the base, which mirrors the image.
+
 ## Run
 
 Needs JDK 21. No database, no external services.
@@ -78,14 +111,20 @@ docker compose up --build              # http://localhost:3000
 
 - `file` — the photograph (required)
 - `profile` — `linear`, `cyanotype` or `cyanotype-soft` (default `cyanotype`)
+- `format` — `png`, `tiff` or `pdf` (default `png`)
+- `paper` — `a4`, `a3`, `letter` or `inch_8x10` (default `a4`; print formats only)
+- `margin` — millimetres (default `10`)
+- `dpi` — pixels per inch on paper, 150–2400 (default `600`)
+- `mirror` — `true` or `false` (default `false`)
 
 | | |
 |---|---|
-| `200` | `image/png`, plus `X-Profile`, `X-Source-Format`, `X-Source-Width`, `X-Source-Height` |
-| `400` | nothing uploaded, or unknown profile |
-| `413` | over 25 MB, or over 80 MP / 20000 px per side |
+| `200` | the file, with `X-Profile`; previews also carry `X-Source-Format`, `X-Source-Width`, `X-Source-Height`; print files carry `X-Paper`, `X-Margin-Mm`, `X-Effective-Ppi`, `X-Print-Width-Mm`, `X-Print-Height-Mm`, `X-Mirrored` |
+| `400` | nothing uploaded, unknown profile, unknown format, unknown paper, or an impossible margin/dpi |
+| `413` | over 25 MB, over 80 MP / 20000 px per side, or an export that would exceed 200 MP |
 | `415` | magic bytes are not PNG/JPEG/TIFF/GIF |
 | `422` | recognised format, but the bytes do not decode |
+| `500` | the upload was fine but the encoder failed (`EXPORT_FAILED`) |
 
 The declared `Content-Type` is ignored. Format is decided by magic bytes, and dimensions
 are read from the header **before** pixels are allocated — a 40-byte PNG claiming
@@ -94,6 +133,8 @@ are read from the header **before** pixels are allocated — a 40-byte PNG claim
 Other endpoints:
 
 - `GET /api/profiles` — the profiles the UI selector is built from.
+- `GET /api/papers` — paper sizes in millimetres.
+- `GET /api/defaults` — what the form starts with.
 - `GET /api/diagnostics/step-wedge?profile=…` — renders a 21-step ramp and reports
   expected vs actual, plus monotonicity and the two extremes.
 - `GET /api/diagnostics/step-wedge.png?profile=…` — the same wedge as an image.
@@ -124,6 +165,20 @@ Two failure modes this catches immediately:
 In the test suite, `NegativeRendererTest` checks all 256 greyscale values under `linear`,
 and `NegativeLutTest` pins the density numbers with hard-coded expectations.
 
+For the print files, the checks are structural and can be repeated with any TIFF or PDF
+reader:
+
+```bash
+# 16 bits, BlackIsZero, 300 dpi, embedded Grey Gamma 2.2
+python3 -c "from PIL import Image; im=Image.open('negative.tiff'); \
+  print(im.mode, im.size, im.tag_v2[258], im.tag_v2[282], len(im.tag_v2[34675]))"
+# I;16 (2244, 1496) (16,) 300.0 312
+
+# A4 page, one DeviceGray image, centred inside 10 mm margins
+python3 -c "from pypdf import PdfReader; p=PdfReader('negative.pdf').pages[0]; \
+  print(p.mediabox, p['/Resources']['/XObject'])"
+```
+
 ## Layout
 
 ```
@@ -138,14 +193,22 @@ imaging/     pure Java, no Spring on the classpath
   PngEncoder         8-bit greyscale output
   NegativePipeline   inspect → decode → render → encode
   StepWedge          known-input test fixture
+  Paper, PrintSpec   stock, margin, sampling density, orientation
+  PrintLayout        fit inside the margins, in points and pixels
+  GrayResampler      bilinear resampling on raw samples, 8 → 16 bits
+  Gray16             raw 16-bit raster, free of AWT colour models
+  GrayProfile        synthesised Grey Gamma 2.2 ICC profile
+  TiffEncoder        baseline TIFF, written byte by byte
+  PdfExporter        one page at true paper size
+  Mirror             horizontal flip for ink-down film
 app/         Spring Boot
-  web/               HTTP surface and error mapping
-  service/           orchestration
+  web/               HTTP surface, catalogue, error mapping
+  service/           render and export orchestration
   config/            property binding, imaging beans
 ```
 
 `imaging` has no framework dependency by construction, and the Gradle module boundary
-enforces it.
+enforces it. PDF output adds PDFBox to that module — a library, not a framework.
 
 ## Not built yet
 
@@ -154,6 +217,8 @@ In the order they will be added:
 1. Calibration: emit a step-wedge target, read measured densities back, fit a curve, store
    it as a versioned process profile. This replaces the assumed `printDmax` with a measured
    one and turns the tone curve into a real characteristic curve.
-2. Physical sizing and margins, PDF output, optional mirroring for one-sided film.
-3. 16-bit TIFF with an embedded Gray Gamma 2.2 ICC profile, and proper DPI metadata.
+2. A step wedge in the margin of the PDF, for the same reason: every print should carry its
+   own reference strip.
+3. A 16-bit path end to end. The export is 16-bit, but the renderer still works from 8-bit
+   source values and a 256-entry LUT.
 4. A job queue for large renders, with retries and idempotency.
